@@ -1,4 +1,4 @@
-#include "Game2048.h"
+#include "../game/Game2048.h"
 
 int main() {
     Game game;
