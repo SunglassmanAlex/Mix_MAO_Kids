@@ -555,8 +555,9 @@ void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) 
     float gifScale = 1.5f; // 增大GIF尺寸
     gifSprite.setScale(gifScale, gifScale);
     
-    // 调整Y位置，让GIF更靠上一些，确保完全可见
-    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 120; // 从-20改为-120，往上移动100像素
+    // 进一步调整Y位置，避免与左下角和右下角的装饰GIF冲突
+    // 装饰GIF位置是WINDOW_HEIGHT - 200，为了避免冲突，移动GIF需要更靠上
+    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 250; // 从-120改为-250，再往上移动130像素
     
     gifSprite.setPosition(gifXPosition, gifYPosition);
     window.draw(gifSprite);
@@ -565,8 +566,8 @@ void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) 
     sf::Sprite secondGifSprite(secondGifTexture);
     secondGifSprite.setScale(gifScale, gifScale);
     
-    // 第二个GIF的Y位置稍微向下偏移，但确保也完全可见
-    float secondGifYPosition = gifYPosition + 40; // 从+60改为+40，减少偏移量
+    // 第二个GIF的Y位置稍微向下偏移，但仍要避免与装饰GIF冲突
+    float secondGifYPosition = gifYPosition + 30; // 从+40改为+30，进一步减少偏移量
     
     secondGifSprite.setPosition(secondGifXPosition, secondGifYPosition);
     window.draw(secondGifSprite);
