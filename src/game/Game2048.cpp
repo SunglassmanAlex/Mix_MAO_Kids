@@ -632,24 +632,29 @@ void Game::renderGame() {
             if (grid[y][x] != 0) {
                 sf::Vector2f pos = getTilePosition(x, y);
                 
-                // 绘制方块背景
-                sf::RectangleShape tile(sf::Vector2f(TILE_SIZE + TILE_MARGIN, TILE_SIZE + TILE_MARGIN));
-                tile.setPosition(pos);
+                // 计算内嵌方块的尺寸和位置（留出一些边距）
+                const int innerPadding = TILE_MARGIN / 2; // 内边距
+                const int innerTileSize = TILE_SIZE - innerPadding * 2;
+                sf::Vector2f innerPos(pos.x + innerPadding, pos.y + innerPadding);
+                
+                // 绘制方块背景（内嵌在格子中）
+                sf::RectangleShape tile(sf::Vector2f(innerTileSize, innerTileSize));
+                tile.setPosition(innerPos);
                 tile.setFillColor(getTileColor(grid[y][x]));
                 window.draw(tile);
 
-                // 尝试绘制GIF
+                // 尝试绘制GIF（内嵌在格子中）
                 auto it = tileGifTexturesMap.find(grid[y][x]);
                 if (it != tileGifTexturesMap.end()) {
                     // 检查纹理尺寸
                     sf::Vector2u texSize = it->second.getSize();
                     if (texSize.x > 0 && texSize.y > 0) {
                         sf::Sprite sprite(it->second);
-                        sprite.setPosition(pos);
+                        sprite.setPosition(innerPos);
                         
-                        // 缩放GIF以适应方块大小
-                        float scaleX = static_cast<float>(TILE_SIZE + TILE_MARGIN) / texSize.x;
-                        float scaleY = static_cast<float>(TILE_SIZE + TILE_MARGIN) / texSize.y;
+                        // 缩放GIF以适应内嵌方块大小
+                        float scaleX = static_cast<float>(innerTileSize) / texSize.x;
+                        float scaleY = static_cast<float>(innerTileSize) / texSize.y;
                         sprite.setScale(scaleX, scaleY);
                         
                         window.draw(sprite);
@@ -664,9 +669,9 @@ void Game::renderGame() {
                 sf::Text text;
                 text.setFont(font);
                 text.setString(std::to_string(grid[y][x]));
-                text.setCharacterSize(TILE_SIZE / 4); // 稍微调小字体大小
+                text.setCharacterSize(innerTileSize / 4); // 根据内嵌大小调整字体
                 text.setFillColor(grid[y][x] <= 4 ? sf::Color(119, 110, 101) : sf::Color::White);
-                text.setPosition(pos.x + 5, pos.y + 5);
+                text.setPosition(innerPos.x + 3, innerPos.y + 3);
                 window.draw(text);
             }
         }
@@ -956,19 +961,20 @@ sf::Color Game::getCellBackgroundColor(int x, int y) const {
 }
 
 void Game::drawGrid() {
+    // 计算网格的实际尺寸（不包含多余的边距）
+    int gridWidth = gridSize * (TILE_SIZE + TILE_MARGIN) - TILE_MARGIN;
+    int gridHeight = gridSize * (TILE_SIZE + TILE_MARGIN) - TILE_MARGIN;
+    
     // 绘制整体背景
-    sf::RectangleShape background(sf::Vector2f(
-        gridSize * (TILE_SIZE + TILE_MARGIN) + TILE_MARGIN,
-        gridSize * (TILE_SIZE + TILE_MARGIN) + TILE_MARGIN
-    ));
-    background.setPosition(GRID_OFFSET_X, GRID_OFFSET_Y);
+    sf::RectangleShape background(sf::Vector2f(gridWidth + TILE_MARGIN * 2, gridHeight + TILE_MARGIN * 2));
+    background.setPosition(GRID_OFFSET_X - TILE_MARGIN, GRID_OFFSET_Y - TILE_MARGIN);
     background.setFillColor(sf::Color(187, 173, 160));
     window.draw(background);
     
     // 绘制每个格子的背景
     for (int y = 0; y < gridSize; ++y) {
         for (int x = 0; x < gridSize; ++x) {
-            sf::RectangleShape cell(sf::Vector2f(TILE_SIZE + TILE_MARGIN, TILE_SIZE + TILE_MARGIN));
+            sf::RectangleShape cell(sf::Vector2f(TILE_SIZE, TILE_SIZE));
             cell.setPosition(
                 GRID_OFFSET_X + x * (TILE_SIZE + TILE_MARGIN),
                 GRID_OFFSET_Y + y * (TILE_SIZE + TILE_MARGIN)
@@ -985,26 +991,22 @@ void Game::drawGrid() {
         }
     }
     
-    // 绘制网格线
+    // 绘制网格线 - 修正长度，确保对齐
     for (int i = 0; i <= gridSize; ++i) {
-        // 垂直线
-        sf::RectangleShape vLine(sf::Vector2f(GRID_LINE_THICKNESS, 
-            gridSize * (TILE_SIZE + TILE_MARGIN) + TILE_MARGIN));
+        // 垂直线 - 只绘制到网格的实际高度
+        sf::RectangleShape vLine(sf::Vector2f(GRID_LINE_THICKNESS, gridHeight));
         vLine.setPosition(
-            GRID_OFFSET_X + i * (TILE_SIZE + TILE_MARGIN) - GRID_LINE_THICKNESS/2,
+            GRID_OFFSET_X + i * (TILE_SIZE + TILE_MARGIN) - TILE_MARGIN/2 - GRID_LINE_THICKNESS/2,
             GRID_OFFSET_Y
         );
         vLine.setFillColor(GRID_LINE_COLOR);
         window.draw(vLine);
         
-        // 水平线
-        sf::RectangleShape hLine(sf::Vector2f(
-            gridSize * (TILE_SIZE + TILE_MARGIN) + TILE_MARGIN,
-            GRID_LINE_THICKNESS
-        ));
+        // 水平线 - 只绘制到网格的实际宽度
+        sf::RectangleShape hLine(sf::Vector2f(gridWidth, GRID_LINE_THICKNESS));
         hLine.setPosition(
             GRID_OFFSET_X,
-            GRID_OFFSET_Y + i * (TILE_SIZE + TILE_MARGIN) - GRID_LINE_THICKNESS/2
+            GRID_OFFSET_Y + i * (TILE_SIZE + TILE_MARGIN) - TILE_MARGIN/2 - GRID_LINE_THICKNESS/2
         );
         hLine.setFillColor(GRID_LINE_COLOR);
         window.draw(hLine);
