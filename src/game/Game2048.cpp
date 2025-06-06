@@ -65,7 +65,7 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
         std::cerr << "Failed to load second cover GIF" << std::endl;
     }
     
-    // 加载主菜单装饰图片
+    // 加载主菜单装饰动画GIF
     std::vector<std::string> decorativeFiles = {
         "assets/picture/4.gif",
         "assets/picture/8.gif", 
@@ -76,11 +76,11 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
     
     decorativeTextures.resize(decorativeFiles.size());
     decorativeSprites.resize(decorativeFiles.size());
+    decorativeGifWrappers.resize(decorativeFiles.size());
     
     for (size_t i = 0; i < decorativeFiles.size(); ++i) {
-        GifWrapper decorativeGif;
-        if (decorativeGif.loadFromFile(decorativeFiles[i], mainMenuBackgroundColor)) {
-            decorativeTextures[i] = decorativeGif.getCurrentFrame();
+        if (decorativeGifWrappers[i].loadFromFile(decorativeFiles[i], mainMenuBackgroundColor)) {
+            decorativeTextures[i] = decorativeGifWrappers[i].getCurrentFrame();
             decorativeSprites[i].setTexture(decorativeTextures[i]);
             
             // 设置装饰图片的大小和位置 (避免与文字重合)
@@ -106,9 +106,9 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
                     break;
             }
             
-            std::cout << "Loaded decorative image: " << decorativeFiles[i] << std::endl;
+            std::cout << "Loaded decorative animated GIF: " << decorativeFiles[i] << std::endl;
         } else {
-            std::cerr << "Failed to load decorative image: " << decorativeFiles[i] << std::endl;
+            std::cerr << "Failed to load decorative animated GIF: " << decorativeFiles[i] << std::endl;
         }
     }
 
@@ -555,8 +555,8 @@ void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) 
     float gifScale = 1.5f; // 增大GIF尺寸
     gifSprite.setScale(gifScale, gifScale);
     
-    // 计算Y位置在窗口底部
-    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 20;
+    // 调整Y位置，让GIF更靠上一些，确保完全可见
+    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 120; // 从-20改为-120，往上移动100像素
     
     gifSprite.setPosition(gifXPosition, gifYPosition);
     window.draw(gifSprite);
@@ -565,8 +565,8 @@ void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) 
     sf::Sprite secondGifSprite(secondGifTexture);
     secondGifSprite.setScale(gifScale, gifScale);
     
-    // 第二个GIF的Y位置稍微向下偏移
-    float secondGifYPosition = gifYPosition + 60; // 向下偏移60像素
+    // 第二个GIF的Y位置稍微向下偏移，但确保也完全可见
+    float secondGifYPosition = gifYPosition + 40; // 从+60改为+40，减少偏移量
     
     secondGifSprite.setPosition(secondGifXPosition, secondGifYPosition);
     window.draw(secondGifSprite);
@@ -637,6 +637,13 @@ void Game::update(sf::Time deltaTime) {
         wrapper.updateFrame();
         // 总是更新纹理，不管是否是动画
         tileGifTexturesMap[value] = wrapper.getCurrentFrame();
+    }
+    
+    // 更新装饰GIF动画
+    for (size_t i = 0; i < decorativeGifWrappers.size(); ++i) {
+        decorativeGifWrappers[i].updateFrame();
+        decorativeTextures[i] = decorativeGifWrappers[i].getCurrentFrame();
+        decorativeSprites[i].setTexture(decorativeTextures[i]);
     }
 
     // 更新主菜单GIF动画 (这里也会被animateGifOnCover函数处理，但保留备用)

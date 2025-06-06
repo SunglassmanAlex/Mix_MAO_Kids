@@ -151,8 +151,10 @@ private:
     std::unordered_map<int, sf::Texture> tileGifTexturesMap;
     std::unordered_map<int, GifWrapper> gifWrappers;
     
+    // 主菜单装饰元素 - 新增
     std::vector<sf::Texture> decorativeTextures;
     std::vector<sf::Sprite> decorativeSprites;
+    std::vector<GifWrapper> decorativeGifWrappers; // 新增：装饰GIF包装器用于动画
 };
 
 #endif // GAME2048_H
