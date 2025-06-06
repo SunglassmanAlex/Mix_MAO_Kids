@@ -25,6 +25,7 @@ public:
     GifWrapper& operator=(const GifWrapper&) = delete;
 
     bool loadFromFile(const std::string& filename);
+    bool loadFromFile(const std::string& filename, const sf::Color& backgroundColor);
     void updateFrame();
     sf::Texture& getCurrentFrame();
     void setLooping(bool loop);
@@ -39,6 +40,8 @@ private:
     bool looping;
     sf::Clock frameClock;
     bool animated;
+    sf::Color backgroundColorOverride;
+    bool useBackgroundOverride;
     
     // GIF解码相关
     struct GifData;

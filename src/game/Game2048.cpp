@@ -22,13 +22,14 @@ const sf::Color GRID_LINE_COLOR = sf::Color(119, 110, 101);
 // Animation speed
 constexpr float GIF_MOVE_SPEED = 200.0f; // pixels per second
 
-Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
+Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"),
                currentState(GameState::MAIN_MENU),
                currentVersion(GameVersion::ORIGINAL),
                gridSize(4),
                score(0),
                gameOver(false),
                gameWon(false),
+               winDialogShown(false),
                gifXPosition(WINDOW_WIDTH) {
     if (!font.loadFromFile("assets/fonts/arial.ttf")) {
         throw std::runtime_error("Failed to load font");
@@ -37,13 +38,19 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
     setupTileColors();
     initializeUI();
     setupExitConfirmUI();
+    setupWinUI();
+    
+    // 加载胜利图片
+    if (!winTexture.loadFromFile("assets/picture/win.jpg")) {
+        std::cerr << "Failed to load win.jpg" << std::endl;
+    }
 
-    // 加载封面GIF
+    // 加载封面GIF (保持原始透明背景用于动画效果)
     GifWrapper coverGif;
     if (coverGif.loadFromFile("assets/picture/2.gif")) {
         std::cout << "Loaded cover GIF" << std::endl;
         gifTexture = coverGif.getCurrentFrame();
-        gifWrappers[2] = std::move(coverGif);
+        // 不要把封面GIF加入到gifWrappers中，因为游戏中的2值GIF需要背景色
     } else {
         std::cerr << "Failed to load cover GIF" << std::endl;
     }
@@ -53,8 +60,12 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
     for (int value : values) {
         std::string filename = "assets/picture/" + std::to_string(value) + ".gif";
         GifWrapper wrapper;
-        if (wrapper.loadFromFile(filename)) {
-            std::cout << "Loaded GIF: " << filename << std::endl;
+        
+        // 获取该值对应的方块背景色
+        sf::Color tileBackgroundColor = getTileColor(value);
+        
+        if (wrapper.loadFromFile(filename, tileBackgroundColor)) {
+            std::cout << "Loaded GIF with background: " << filename << std::endl;
             tileGifTexturesMap[value] = wrapper.getCurrentFrame();
             gifWrappers[value] = std::move(wrapper);
         } else {
@@ -62,7 +73,8 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
             // 如果加载失败，使用32768.gif作为后备
             if (value != 32768) {
                 GifWrapper fallbackWrapper;
-                if (fallbackWrapper.loadFromFile("assets/picture/32768.gif")) {
+                sf::Color fallbackBackgroundColor = getTileColor(32768);
+                if (fallbackWrapper.loadFromFile("assets/picture/32768.gif", fallbackBackgroundColor)) {
                     tileGifTexturesMap[value] = fallbackWrapper.getCurrentFrame();
                     gifWrappers[value] = std::move(fallbackWrapper);
                 } else {
@@ -70,7 +82,7 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
                     sf::Texture fallback;
                     fallback.create(100, 100);
                     sf::Image img;
-                    img.create(100, 100, sf::Color(128, 128, 128, 255));
+                    img.create(100, 100, tileBackgroundColor);
                     fallback.loadFromImage(img);
                     tileGifTexturesMap[value] = fallback;
                 }
@@ -79,7 +91,7 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2048 Game"),
                 sf::Texture fallback;
                 fallback.create(100, 100);
                 sf::Image img;
-                img.create(100, 100, sf::Color(128, 128, 128, 255));
+                img.create(100, 100, tileBackgroundColor);
                 fallback.loadFromImage(img);
                 tileGifTexturesMap[value] = fallback;
             }
@@ -151,6 +163,53 @@ void Game::setupExitConfirmUI() {
     exitConfirmNoText.setCharacterSize(24);
     exitConfirmNoText.setFillColor(sf::Color::White);
     exitConfirmNoText.setPosition(WINDOW_WIDTH/2 + 50, WINDOW_HEIGHT/2 + 30);
+}
+
+void Game::setupWinUI() {
+    // Semi-transparent background
+    winBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    winBackground.setFillColor(sf::Color(0, 0, 0, 150));
+    
+    // Win dialog box
+    winBox.setSize(sf::Vector2f(600, 400));
+    winBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
+    winBox.setFillColor(sf::Color(250, 248, 239));
+    
+    // Win sprite (will be set when showing)
+    winSprite.setTexture(winTexture);
+    float spriteScale = 200.0f / std::max(winTexture.getSize().x, winTexture.getSize().y);
+    winSprite.setScale(spriteScale, spriteScale);
+    winSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
+    
+    // "You win!!" text
+    winText.setFont(font);
+    winText.setString("You win!!");
+    winText.setCharacterSize(48);
+    winText.setFillColor(sf::Color::Red);
+    winText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 20);
+    
+    // Continue button
+    winContinueButton.setSize(sf::Vector2f(150, 60));
+    winContinueButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
+    winContinueButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Quit button
+    winQuitButton.setSize(sf::Vector2f(150, 60));
+    winQuitButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
+    winQuitButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Button texts
+    winContinueText.setFont(font);
+    winContinueText.setString("Continue(C)");
+    winContinueText.setCharacterSize(20);
+    winContinueText.setFillColor(sf::Color::White);
+    winContinueText.setPosition(WINDOW_WIDTH/2 - 165, WINDOW_HEIGHT/2 + 95);
+    
+    winQuitText.setFont(font);
+    winQuitText.setString("Quit(Esc)");
+    winQuitText.setCharacterSize(20);
+    winQuitText.setFillColor(sf::Color::White);
+    winQuitText.setPosition(WINDOW_WIDTH/2 + 55, WINDOW_HEIGHT/2 + 95);
 }
 
 void Game::initializeUI() {
@@ -296,6 +355,12 @@ void Game::processEvents() {
                 continue;
             }
 
+            // 胜利界面点击处理
+            if (currentState == GameState::GAME && gameWon && winDialogShown) {
+                handleWinDialogClick(mousePos);
+                continue;
+            }
+
             // Menu click logic
             if (currentState == GameState::MAIN_MENU) {
                 handleMainMenuClick(mousePos);
@@ -328,6 +393,12 @@ void Game::handleVersionMenuClick(const sf::Vector2f& pos) {
 }
 
 void Game::handleGameInput(sf::Keyboard::Key key) {
+    // 如果显示胜利对话框，优先处理胜利界面的输入
+    if (gameWon && winDialogShown) {
+        handleWinDialogKeyInput(key);
+        return;
+    }
+    
     bool moved = false;
     
     if (currentVersion == GameVersion::ORIGINAL) {
@@ -371,6 +442,39 @@ void Game::handleGameInput(sf::Keyboard::Key key) {
     if (moved) {
         addRandomTile();
         gameOver = isGameOver();
+    }
+}
+
+void Game::handleWinDialogClick(const sf::Vector2f& mousePos) {
+    // 检查Continue按钮
+    if (winContinueButton.getGlobalBounds().contains(mousePos)) {
+        winDialogShown = false;
+        // 继续游戏，不重置gameWon状态，这样玩家可以继续玩到更高分数
+        return;
+    }
+    
+    // 检查Quit按钮
+    if (winQuitButton.getGlobalBounds().contains(mousePos)) {
+        currentState = GameState::MAIN_MENU;
+        winDialogShown = false;
+        gameWon = false;
+        return;
+    }
+}
+
+void Game::handleWinDialogKeyInput(sf::Keyboard::Key key) {
+    if (key == sf::Keyboard::C) {
+        // Continue game
+        winDialogShown = false;
+        return;
+    }
+    
+    if (key == sf::Keyboard::Escape) {
+        // Quit to main menu
+        currentState = GameState::MAIN_MENU;
+        winDialogShown = false;
+        gameWon = false;
+        return;
     }
 }
 
@@ -476,6 +580,18 @@ void Game::render() {
     } else if (currentState == GameState::GAME) {
         renderGame(); // 这里会绘制网格和数字
         // 不再调用drawGifsOnGrid，因为我们在renderGame中已经处理了渲染
+        
+        // 如果胜利且显示对话框，绘制胜利界面
+        if (gameWon && winDialogShown) {
+            window.draw(winBackground);
+            window.draw(winBox);
+            window.draw(winSprite);
+            window.draw(winText);
+            window.draw(winContinueButton);
+            window.draw(winContinueText);
+            window.draw(winQuitButton);
+            window.draw(winQuitText);
+        }
     } else if (currentState == GameState::EXIT_CONFIRM) {
         // 根据当前状态绘制背景
         if (!grid.empty()) {
@@ -629,6 +745,7 @@ void Game::initializeGame(int size, GameVersion version) {
     score = 0;
     gameOver = false;
     gameWon = false;
+    winDialogShown = false;
     
     // 添加初始方块
     addRandomTile();
@@ -709,6 +826,13 @@ bool Game::moveTiles(int dx, int dy) {
                     merged[nextY][nextX] = true;
                     grid[nextY][nextX] *= 2;
                     score += grid[nextY][nextX];
+                    
+                    // 检测是否达到2048胜利条件
+                    if (grid[nextY][nextX] == 2048 && !gameWon && !winDialogShown) {
+                        gameWon = true;
+                        winDialogShown = true;
+                    }
+                    
                     grid[y][x] = 0;
                     moved = true;
                     hasMerged = true;

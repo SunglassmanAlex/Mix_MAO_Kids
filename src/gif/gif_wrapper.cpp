@@ -21,7 +21,8 @@ struct GifWrapper::GifData {
     float defaultDelay = 0.1f; // 默认帧延迟（秒）
 };
 
-GifWrapper::GifWrapper() : currentFrame(0), looping(true), animated(false) {
+GifWrapper::GifWrapper() : currentFrame(0), looping(true), animated(false), 
+                         backgroundColorOverride(sf::Color::Transparent), useBackgroundOverride(false) {
     gifData = std::make_unique<GifData>();
 }
 
@@ -35,6 +36,8 @@ GifWrapper::GifWrapper(GifWrapper&& other) noexcept
       looping(other.looping),
       frameClock(other.frameClock),
       animated(other.animated),
+      backgroundColorOverride(other.backgroundColorOverride),
+      useBackgroundOverride(other.useBackgroundOverride),
       gifData(std::move(other.gifData)) {
 }
 
@@ -45,6 +48,8 @@ GifWrapper& GifWrapper::operator=(GifWrapper&& other) noexcept {
         looping = other.looping;
         frameClock = other.frameClock;
         animated = other.animated;
+        backgroundColorOverride = other.backgroundColorOverride;
+        useBackgroundOverride = other.useBackgroundOverride;
         gifData = std::move(other.gifData);
     }
     return *this;
@@ -177,6 +182,14 @@ private:
 };
 
 bool GifWrapper::loadFromFile(const std::string& filename) {
+    return loadFromFile(filename, sf::Color::Transparent);
+}
+
+bool GifWrapper::loadFromFile(const std::string& filename, const sf::Color& backgroundColor) {
+    // 设置背景色覆盖
+    backgroundColorOverride = backgroundColor;
+    useBackgroundOverride = (backgroundColor != sf::Color::Transparent);
+    
     // 清除现有数据
     frames.clear();
     currentFrame = 0;
@@ -319,7 +332,19 @@ bool GifWrapper::loadFromFile(const std::string& filename) {
                             if (dataIndex < static_cast<int>(decodedData.size())) {
                                 uint8_t colorIndex = decodedData[dataIndex];
                                 if (colorIndex < colorTable.size()) {
-                                    frameImage.setPixel(px + left, py + top, colorTable[colorIndex]);
+                                    sf::Color pixelColor = colorTable[colorIndex];
+                                    
+                                    // 如果启用背景色覆盖，替换透明或接近黑色的像素
+                                    if (useBackgroundOverride) {
+                                        // 检查是否为透明或接近黑色的像素
+                                        bool isTransparentOrDark = (pixelColor.a < 128) || 
+                                                                 (pixelColor.r < 50 && pixelColor.g < 50 && pixelColor.b < 50);
+                                        if (isTransparentOrDark) {
+                                            pixelColor = backgroundColorOverride;
+                                        }
+                                    }
+                                    
+                                    frameImage.setPixel(px + left, py + top, pixelColor);
                                 }
                             }
                         }

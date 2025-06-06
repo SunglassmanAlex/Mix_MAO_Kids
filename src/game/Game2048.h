@@ -48,10 +48,12 @@ private:
     int score;
     bool gameOver;
     bool gameWon;
+    bool winDialogShown;
     
     // Resources
     sf::Font font;
     sf::Texture tileTexture;
+    sf::Texture winTexture;
     std::array<sf::Color, 12> tileColors;
     
     // UI Elements - Main Menu
@@ -78,7 +80,18 @@ private:
     sf::Text exitConfirmYesText;
     sf::Text exitConfirmNoText;
 
-    void setupExitConfirmUI();  
+    // Win dialog UI
+    sf::RectangleShape winBackground;
+    sf::RectangleShape winBox;
+    sf::Sprite winSprite;
+    sf::Text winText;
+    sf::RectangleShape winContinueButton;
+    sf::RectangleShape winQuitButton;
+    sf::Text winContinueText;
+    sf::Text winQuitText;
+
+    void setupExitConfirmUI();
+    void setupWinUI();
 
     // Draw black and white grids in the modified version
     sf::Color getCellBackgroundColor(int x, int y) const;
@@ -100,6 +113,8 @@ private:
     void handleMainMenuClick(const sf::Vector2f& mousePos);
     void handleVersionMenuClick(const sf::Vector2f& mousePos);
     void handleGameInput(sf::Keyboard::Key key);
+    void handleWinDialogClick(const sf::Vector2f& mousePos);
+    void handleWinDialogKeyInput(sf::Keyboard::Key key);
     
     // Game logic
     void initializeGame(int size, GameVersion version);
