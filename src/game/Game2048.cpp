@@ -19,8 +19,8 @@ int TILE_MARGIN = 5;
 constexpr int GRID_LINE_THICKNESS = 4;
 const sf::Color GRID_LINE_COLOR = sf::Color(119, 110, 101);
 
-// Animation speed
-constexpr float GIF_MOVE_SPEED = 200.0f; // pixels per second
+// Animation speed - 修改这里可以调整主菜单GIF移动速度
+constexpr float GIF_MOVE_SPEED = 100.0f; // pixels per second (减慢了速度)
 
 Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"),
                currentState(GameState::MAIN_MENU),
@@ -30,7 +30,8 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
                gameOver(false),
                gameWon(false),
                winDialogShown(false),
-               gifXPosition(WINDOW_WIDTH) {
+               gifXPosition(WINDOW_WIDTH),
+               secondGifXPosition(WINDOW_WIDTH + 150) { // 第二个GIF初始位置偏移
     if (!font.loadFromFile("assets/fonts/arial.ttf")) {
         throw std::runtime_error("Failed to load font");
     }
@@ -45,14 +46,70 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
         std::cerr << "Failed to load win.jpg" << std::endl;
     }
 
-    // 加载封面GIF (保持原始透明背景用于动画效果)
+    // 加载主菜单封面GIF (使用主菜单背景色)
+    sf::Color mainMenuBackgroundColor(187, 173, 160); // 主菜单背景色
     GifWrapper coverGif;
-    if (coverGif.loadFromFile("assets/picture/2.gif")) {
-        std::cout << "Loaded cover GIF" << std::endl;
+    if (coverGif.loadFromFile("assets/picture/2.gif", mainMenuBackgroundColor)) {
+        std::cout << "Loaded cover GIF with background color" << std::endl;
         gifTexture = coverGif.getCurrentFrame();
-        // 不要把封面GIF加入到gifWrappers中，因为游戏中的2值GIF需要背景色
     } else {
         std::cerr << "Failed to load cover GIF" << std::endl;
+    }
+    
+    // 加载第二个GIF (同样的GIF，用于双重动画效果)
+    GifWrapper secondCoverGif;
+    if (secondCoverGif.loadFromFile("assets/picture/2.gif", mainMenuBackgroundColor)) {
+        std::cout << "Loaded second cover GIF with background color" << std::endl;
+        secondGifTexture = secondCoverGif.getCurrentFrame();
+    } else {
+        std::cerr << "Failed to load second cover GIF" << std::endl;
+    }
+    
+    // 加载主菜单装饰图片
+    std::vector<std::string> decorativeFiles = {
+        "assets/picture/4.gif",
+        "assets/picture/8.gif", 
+        "assets/picture/16.gif",
+        "assets/picture/32.gif",
+        "assets/picture/64.gif"
+    };
+    
+    decorativeTextures.resize(decorativeFiles.size());
+    decorativeSprites.resize(decorativeFiles.size());
+    
+    for (size_t i = 0; i < decorativeFiles.size(); ++i) {
+        GifWrapper decorativeGif;
+        if (decorativeGif.loadFromFile(decorativeFiles[i], mainMenuBackgroundColor)) {
+            decorativeTextures[i] = decorativeGif.getCurrentFrame();
+            decorativeSprites[i].setTexture(decorativeTextures[i]);
+            
+            // 设置装饰图片的大小和位置 (避免与文字重合)
+            float scale = 80.0f / std::max(decorativeTextures[i].getSize().x, decorativeTextures[i].getSize().y);
+            decorativeSprites[i].setScale(scale, scale);
+            
+            // 根据索引设置不同位置
+            switch (i) {
+                case 0: // 左上角
+                    decorativeSprites[i].setPosition(50, 50);
+                    break;
+                case 1: // 右上角
+                    decorativeSprites[i].setPosition(WINDOW_WIDTH - 130, 50);
+                    break;
+                case 2: // 左下角 (避开动画GIF区域)
+                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT - 200);
+                    break;
+                case 3: // 右下角 (避开动画GIF区域)
+                    decorativeSprites[i].setPosition(WINDOW_WIDTH - 130, WINDOW_HEIGHT - 200);
+                    break;
+                case 4: // 左中
+                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT / 2);
+                    break;
+            }
+            
+            std::cout << "Loaded decorative image: " << decorativeFiles[i] << std::endl;
+        } else {
+            std::cerr << "Failed to load decorative image: " << decorativeFiles[i] << std::endl;
+        }
     }
 
     // 加载所有可能的GIF纹理
@@ -493,21 +550,43 @@ bool Game::loadGif(const std::string& filename, sf::Texture& texture) {
 }
 
 void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) {
+    // 第一个GIF (稍微加大一点)
     sf::Sprite gifSprite(gifTexture);
+    float gifScale = 1.5f; // 增大GIF尺寸
+    gifSprite.setScale(gifScale, gifScale);
     
     // 计算Y位置在窗口底部
-    float gifYPosition = WINDOW_HEIGHT - gifTexture.getSize().y - 20;
+    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 20;
     
     gifSprite.setPosition(gifXPosition, gifYPosition);
     window.draw(gifSprite);
+    
+    // 第二个GIF (同样大小，在右下方一点)
+    sf::Sprite secondGifSprite(secondGifTexture);
+    secondGifSprite.setScale(gifScale, gifScale);
+    
+    // 第二个GIF的Y位置稍微向下偏移
+    float secondGifYPosition = gifYPosition + 60; // 向下偏移60像素
+    
+    secondGifSprite.setPosition(secondGifXPosition, secondGifYPosition);
+    window.draw(secondGifSprite);
 
     // 仅当在主菜单时才更新位置
     if (currentState == GameState::MAIN_MENU) {
-        gifXPosition -= GIF_MOVE_SPEED * gifMoveClock.restart().asSeconds();
+        float deltaTime = gifMoveClock.restart().asSeconds();
         
-        // 当GIF移出左边界时重置位置
-        if (gifXPosition < -static_cast<float>(gifTexture.getSize().x)) {
+        // 两个GIF以相同速度移动
+        gifXPosition -= GIF_MOVE_SPEED * deltaTime;
+        secondGifXPosition -= GIF_MOVE_SPEED * deltaTime;
+        
+        // 当第一个GIF移出左边界时重置位置
+        if (gifXPosition < -static_cast<float>(gifTexture.getSize().x * gifScale)) {
             gifXPosition = WINDOW_WIDTH;
+        }
+        
+        // 当第二个GIF移出左边界时重置位置
+        if (secondGifXPosition < -static_cast<float>(secondGifTexture.getSize().x * gifScale)) {
+            secondGifXPosition = WINDOW_WIDTH + 150; // 保持150像素的间距
         }
     }
 }
@@ -560,12 +639,10 @@ void Game::update(sf::Time deltaTime) {
         tileGifTexturesMap[value] = wrapper.getCurrentFrame();
     }
 
-    // 更新主菜单GIF动画
+    // 更新主菜单GIF动画 (这里也会被animateGifOnCover函数处理，但保留备用)
     if (currentState == GameState::MAIN_MENU) {
-        gifXPosition -= GIF_MOVE_SPEED * deltaTime.asSeconds();
-        if (gifXPosition < -static_cast<float>(gifTexture.getSize().x)) {
-            gifXPosition = WINDOW_WIDTH;
-        }
+        // GIF动画位置更新在animateGifOnCover函数中处理
+        // 这里可以添加其他主菜单相关的更新逻辑
     }
 }
 
@@ -686,6 +763,13 @@ void Game::renderGame() {
 
 void Game::renderMainMenu() {
     window.clear(sf::Color(187, 173, 160));
+    
+    // 绘制装饰图片
+    for (const auto& sprite : decorativeSprites) {
+        window.draw(sprite);
+    }
+    
+    // 绘制主要界面元素
     window.draw(titleText);
     
     for (const auto& button : sizeButtons) {

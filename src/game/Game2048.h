@@ -141,13 +141,18 @@ private:
     void updateGifFrame(sf::Texture& texture, int value);
 
     sf::Texture gifTexture;
+    sf::Texture secondGifTexture;
     float gifXPosition;
+    float secondGifXPosition;
     std::vector<sf::Texture> tileGifTextures;
     sf::Clock animationClock;
     sf::Clock gifMoveClock;
     
     std::unordered_map<int, sf::Texture> tileGifTexturesMap;
     std::unordered_map<int, GifWrapper> gifWrappers;
+    
+    std::vector<sf::Texture> decorativeTextures;
+    std::vector<sf::Sprite> decorativeSprites;
 };
 
 #endif // GAME2048_H
