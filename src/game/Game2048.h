@@ -49,8 +49,9 @@ private:
     bool gameOver;
     bool gameWon;
     bool winDialogShown;
-    bool achievedSixteen;
-    bool sixteenDialogShown;
+    bool achievedWin;
+    bool winAchievementDialogShown;
+    bool isPaused; // 新增：暂停状态
     
     // Resources
     sf::Font font;
@@ -73,6 +74,10 @@ private:
     sf::Text scoreText;
     sf::Text gameOverText;
     sf::Text restartText;
+    
+    // Pause button UI
+    sf::RectangleShape pauseButton;
+    sf::Text pauseButtonText;
 
     // Exit confirmation UI
     sf::RectangleShape exitConfirmBackground;
@@ -93,15 +98,15 @@ private:
     sf::Text winContinueText;
     sf::Text winQuitText;
 
-    // Sixteen achievement dialog UI
-    sf::RectangleShape sixteenBackground;
-    sf::RectangleShape sixteenBox;
-    sf::Sprite sixteenSprite;
-    sf::Text sixteenText;
-    sf::RectangleShape sixteenContinueButton;
-    sf::RectangleShape sixteenMenuButton;
-    sf::Text sixteenContinueText;
-    sf::Text sixteenMenuText;
+    // Win achievement dialog UI
+    sf::RectangleShape winAchievementBackground;
+    sf::RectangleShape winAchievementBox;
+    sf::Sprite winAchievementSprite;
+    sf::Text winAchievementText;
+    sf::RectangleShape winAchievementContinueButton;
+    sf::RectangleShape winAchievementMenuButton;
+    sf::Text winAchievementContinueText;
+    sf::Text winAchievementMenuText;
 
     // Game over dialog UI
     sf::RectangleShape gameOverBackground;
@@ -113,10 +118,23 @@ private:
     sf::Text gameOverRestartText;
     sf::Text gameOverMenuText;
 
+    // Pause dialog UI - 新增
+    sf::RectangleShape pauseBackground;
+    sf::RectangleShape pauseBox;
+    sf::Sprite pauseSprite;
+    sf::Text pauseText;
+    sf::RectangleShape pauseContinueButton;
+    sf::RectangleShape pauseMenuButton;
+    sf::Text pauseContinueText;
+    sf::Text pauseMenuText;
+
     void setupExitConfirmUI();
     void setupWinUI();
-    void setupSixteenUI();
+    void setupWinAchievementUI();
     void setupGameOverUI();
+    void setupPauseUI(); // 新增
+    void setupWinSprites();
+    void drawRoundedRectangle(sf::RenderWindow& window, const sf::Vector2f& position, const sf::Vector2f& size, const sf::Color& color, float cornerRadius = 10.0f);
 
     // Draw black and white grids in the modified version
     sf::Color getCellBackgroundColor(int x, int y) const;
@@ -140,10 +158,12 @@ private:
     void handleGameInput(sf::Keyboard::Key key);
     void handleWinDialogClick(const sf::Vector2f& mousePos);
     void handleWinDialogKeyInput(sf::Keyboard::Key key);
-    void handleSixteenDialogClick(const sf::Vector2f& mousePos);
-    void handleSixteenDialogKeyInput(sf::Keyboard::Key key);
+    void handleWinAchievementDialogClick(const sf::Vector2f& mousePos);
+    void handleWinAchievementDialogKeyInput(sf::Keyboard::Key key);
     void handleGameOverDialogClick(const sf::Vector2f& mousePos);
     void handleGameOverDialogKeyInput(sf::Keyboard::Key key);
+    void handlePauseDialogClick(const sf::Vector2f& mousePos); // 新增
+    void handlePauseDialogKeyInput(sf::Keyboard::Key key); // 新增
     
     // Game logic
     void initializeGame(int size, GameVersion version);

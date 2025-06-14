@@ -5,6 +5,14 @@ project(My2048)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 设置UTF-8编码支持
+add_compile_definitions(UNICODE _UNICODE)
+if(MSVC)
+    add_compile_options(/utf-8)
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -finput-charset=UTF-8 -fexec-charset=UTF-8")
+endif()
+
 # 查找SFML库
 find_package(SFML 2.6 COMPONENTS graphics window system REQUIRED)
 
@@ -31,3 +39,11 @@ target_link_libraries(My2048
 
 # 复制资源文件到构建目录（可选）
 file(COPY assets DESTINATION ${CMAKE_BINARY_DIR})
+
+# 添加字体测试程序（可选）
+add_executable(test_font test_font.cpp)
+target_link_libraries(test_font 
+    sfml-graphics 
+    sfml-window 
+    sfml-system
+)

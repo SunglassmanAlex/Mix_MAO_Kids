@@ -4,6 +4,9 @@
 #include <random>
 #include <sstream>
 #include <iostream>
+#include <locale>
+#include <codecvt>
+#include <cmath>
 #include <SFML/Graphics.hpp>
 
 // Window dimensions
@@ -22,7 +25,15 @@ const sf::Color GRID_LINE_COLOR = sf::Color(119, 110, 101);
 // Animation speed - 修改这里可以调整主菜单GIF移动速度
 constexpr float GIF_MOVE_SPEED = 100.0f; // pixels per second (减慢了速度)
 
-Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "合成耄孩子"),
+// 胜利条件配置 - 修改这里可以改变胜利所需的数值
+constexpr int WIN_VALUE = 16; // 当前设为16，以后可改为2048
+
+// UTF-8 字符串转换辅助函数
+sf::String toUTF8String(const std::string& str) {
+    return sf::String::fromUtf8(str.begin(), str.end());
+}
+
+Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"合成耄孩子"),
                currentState(GameState::MAIN_MENU),
                currentVersion(GameVersion::ORIGINAL),
                gridSize(4),
@@ -30,30 +41,91 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "合成耄孩�
                gameOver(false),
                gameWon(false),
                winDialogShown(false),
-               achievedSixteen(false),
-               sixteenDialogShown(false),
+               achievedWin(false),
+               winAchievementDialogShown(false),
+               isPaused(false),
                gifXPosition(WINDOW_WIDTH),
                secondGifXPosition(WINDOW_WIDTH + 150) { // 第二个GIF初始位置偏移
-    if (!font.loadFromFile("assets/fonts/arial.ttf")) {
-        throw std::runtime_error("Failed to load font");
+    
+    // 设置UTF-8语言环境支持中文
+    std::setlocale(LC_ALL, "en_US.UTF-8");
+    
+    // 尝试加载支持中文的字体 - 优先使用确定有效的项目字体
+    bool fontLoaded = false;
+    
+    // 优先使用项目内的字体文件，确保路径正确
+    std::vector<std::pair<std::string, std::string>> projectFonts = {
+        {"../assets/fonts/SourceHanSansSC.otf", "思源黑体"},
+        {"../assets/fonts/simhei.ttf", "黑体"},
+        {"../assets/fonts/msyh.ttc", "微软雅黑"},
+        {"../assets/fonts/simsun.ttc", "宋体"}
+    };
+    
+    for (const auto& fontPair : projectFonts) {
+        if (font.loadFromFile(fontPair.first)) {
+            std::cout << "✓ 成功加载字体: " << fontPair.second << " (" << fontPair.first << ")" << std::endl;
+            
+            // 测试中文字符渲染能力
+            sf::Text testText;
+            testText.setFont(font);
+            testText.setString(toUTF8String("测试中文"));
+            testText.setCharacterSize(24);
+            
+            std::cout << "✓ 字体支持中文字符测试完成" << std::endl;
+            fontLoaded = true;
+            break;
+        } else {
+            std::cout << "✗ 加载字体失败: " << fontPair.second << " (" << fontPair.first << ")" << std::endl;
+        }
+    }
+    
+    // 如果项目字体失败，尝试系统字体作为备用
+    if (!fontLoaded) {
+        std::vector<std::pair<std::string, std::string>> systemFonts = {
+            {"/mnt/c/Windows/Fonts/msyh.ttc", "系统微软雅黑"},
+            {"/mnt/c/Windows/Fonts/simsun.ttc", "系统宋体"},
+            {"/mnt/c/Windows/Fonts/simhei.ttf", "系统黑体"}
+        };
+        
+        for (const auto& fontPair : systemFonts) {
+            if (font.loadFromFile(fontPair.first)) {
+                std::cout << "✓ 成功加载系统字体: " << fontPair.second << " (" << fontPair.first << ")" << std::endl;
+                fontLoaded = true;
+                break;
+            }
+        }
+    }
+    
+    if (!fontLoaded) {
+        std::cout << "✗ 所有字体加载失败，使用默认字体" << std::endl;
+        // 不抛出异常，而是使用默认字体继续运行
+        std::cout << "⚠ 警告：将使用默认字体，中文可能无法正确显示" << std::endl;
     }
     
     setupTileColors();
     initializeUI();
     setupExitConfirmUI();
     setupWinUI();
-    setupSixteenUI();
+    setupWinAchievementUI();
     setupGameOverUI();
+    setupPauseUI();
     
     // 加载胜利图片
     if (!winTexture.loadFromFile("assets/picture/win.jpg")) {
-        std::cerr << "Failed to load win.jpg" << std::endl;
+        std::cerr << "✗ Failed to load win.jpg" << std::endl;
+    } else {
+        std::cout << "✓ Successfully loaded win.jpg (" << winTexture.getSize().x << "x" << winTexture.getSize().y << ")" << std::endl;
     }
 
     // 加载失败图片
     if (!loseTexture.loadFromFile("assets/picture/lose.jpg")) {
-        std::cerr << "Failed to load lose.jpg" << std::endl;
+        std::cerr << "✗ Failed to load lose.jpg" << std::endl;
+    } else {
+        std::cout << "✓ Successfully loaded lose.jpg (" << loseTexture.getSize().x << "x" << loseTexture.getSize().y << ")" << std::endl;
     }
+    
+    // 图片加载完成后，重新设置sprite的纹理和位置
+    setupWinSprites();
 
     // 加载主菜单封面GIF (使用主菜单背景色)
     sf::Color mainMenuBackgroundColor(187, 173, 160); // 主菜单背景色
@@ -105,13 +177,13 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "合成耄孩�
                     decorativeSprites[i].setPosition(WINDOW_WIDTH - 130, 50);
                     break;
                 case 2: // 左下角 (避开动画GIF区域)
-                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT - 200);
+                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT / 2);
                     break;
                 case 3: // 右下角 (避开动画GIF区域)
-                    decorativeSprites[i].setPosition(WINDOW_WIDTH - 130, WINDOW_HEIGHT - 200);
+                    decorativeSprites[i].setPosition(WINDOW_WIDTH - 130, WINDOW_HEIGHT / 2);
                     break;
                 case 4: // 左中
-                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT / 2);
+                    decorativeSprites[i].setPosition(50, WINDOW_HEIGHT / 2 - 150);
                     break;
             }
             
@@ -202,12 +274,16 @@ void Game::setupExitConfirmUI() {
     exitConfirmBox.setPosition(WINDOW_WIDTH/2 - 250, WINDOW_HEIGHT/2 - 100);
     exitConfirmBox.setFillColor(sf::Color(143, 122, 102));
     
-    // Confirmation text
+    // Confirmation text - 横向居中
     exitConfirmText.setFont(font);
-    exitConfirmText.setString("确定要退出游戏吗？");
+    exitConfirmText.setString(toUTF8String("确定要退出游戏吗？"));
     exitConfirmText.setCharacterSize(28);
     exitConfirmText.setFillColor(sf::Color::White);
-    exitConfirmText.setPosition(WINDOW_WIDTH/2 - 140, WINDOW_HEIGHT/2 - 70);
+    // 居中对齐
+    sf::FloatRect confirmTextRect = exitConfirmText.getLocalBounds();
+    exitConfirmText.setOrigin(confirmTextRect.left + confirmTextRect.width/2.0f,
+                             confirmTextRect.top + confirmTextRect.height/2.0f);
+    exitConfirmText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 - 50);
     
     // Yes/No buttons
     exitConfirmYesButton.setSize(sf::Vector2f(120, 50));
@@ -218,17 +294,26 @@ void Game::setupExitConfirmUI() {
     exitConfirmNoButton.setPosition(WINDOW_WIDTH/2 + 20, WINDOW_HEIGHT/2 + 20);
     exitConfirmNoButton.setFillColor(sf::Color(255, 100, 100));
     
+    // Button texts - 横向居中
     exitConfirmYesText.setFont(font);
-    exitConfirmYesText.setString("是(Y)");
+    exitConfirmYesText.setString(toUTF8String("是(Y)"));
     exitConfirmYesText.setCharacterSize(24);
     exitConfirmYesText.setFillColor(sf::Color::White);
-    exitConfirmYesText.setPosition(WINDOW_WIDTH/2 - 115, WINDOW_HEIGHT/2 + 30);
+    // 居中对齐
+    sf::FloatRect yesTextRect = exitConfirmYesText.getLocalBounds();
+    exitConfirmYesText.setOrigin(yesTextRect.left + yesTextRect.width/2.0f,
+                                yesTextRect.top + yesTextRect.height/2.0f);
+    exitConfirmYesText.setPosition(WINDOW_WIDTH/2 - 80, WINDOW_HEIGHT/2 + 45); // 按钮中心位置
     
     exitConfirmNoText.setFont(font);
-    exitConfirmNoText.setString("否(N)");
+    exitConfirmNoText.setString(toUTF8String("否(N)"));
     exitConfirmNoText.setCharacterSize(24);
     exitConfirmNoText.setFillColor(sf::Color::White);
-    exitConfirmNoText.setPosition(WINDOW_WIDTH/2 + 50, WINDOW_HEIGHT/2 + 30);
+    // 居中对齐
+    sf::FloatRect noTextRect = exitConfirmNoText.getLocalBounds();
+    exitConfirmNoText.setOrigin(noTextRect.left + noTextRect.width/2.0f,
+                               noTextRect.top + noTextRect.height/2.0f);
+    exitConfirmNoText.setPosition(WINDOW_WIDTH/2 + 80, WINDOW_HEIGHT/2 + 45); // 按钮中心位置
 }
 
 void Game::setupWinUI() {
@@ -241,15 +326,13 @@ void Game::setupWinUI() {
     winBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
     winBox.setFillColor(sf::Color(250, 248, 239));
     
-    // Win sprite (will be set when showing)
-    winSprite.setTexture(winTexture);
-    float spriteScale = 200.0f / std::max(winTexture.getSize().x, winTexture.getSize().y);
-    winSprite.setScale(spriteScale, spriteScale);
+    // Win sprite (will be set in setupWinSprites)
+    // 这里只设置默认位置，实际纹理和位置会在图片加载后设置
     winSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
     
     // "You win!!" text
     winText.setFont(font);
-    winText.setString("恭喜获胜!!");
+    winText.setString(toUTF8String("你赢了!!"));
     winText.setCharacterSize(48);
     winText.setFillColor(sf::Color::Red);
     winText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 20);
@@ -266,13 +349,13 @@ void Game::setupWinUI() {
     
     // Button texts
     winContinueText.setFont(font);
-    winContinueText.setString("继续(C)");
+    winContinueText.setString(toUTF8String("继续(C)"));
     winContinueText.setCharacterSize(20);
     winContinueText.setFillColor(sf::Color::White);
     winContinueText.setPosition(WINDOW_WIDTH/2 - 165, WINDOW_HEIGHT/2 + 95);
     
     winQuitText.setFont(font);
-    winQuitText.setString("退出(Esc)");
+    winQuitText.setString(toUTF8String("退出(Esc)"));
     winQuitText.setCharacterSize(20);
     winQuitText.setFillColor(sf::Color::White);
     winQuitText.setPosition(WINDOW_WIDTH/2 + 55, WINDOW_HEIGHT/2 + 95);
@@ -290,14 +373,14 @@ void Game::initializeUI() {
     
     // Game over text
     gameOverText.setFont(font);
-    gameOverText.setString("游戏结束!");
+    gameOverText.setString(toUTF8String("游戏结束!"));
     gameOverText.setCharacterSize(48);
     gameOverText.setFillColor(sf::Color::Red);
     gameOverText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 50);
     
     // Restart prompt text
     restartText.setFont(font);
-    restartText.setString("按 R 键重新开始");
+    restartText.setString(toUTF8String("按 R 键重新开始"));
     restartText.setCharacterSize(24);
     restartText.setFillColor(sf::Color::White);
     restartText.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 + 20);
@@ -306,7 +389,7 @@ void Game::initializeUI() {
 void Game::setupMainMenu() {
     // Main menu title
     titleText.setFont(font);
-    titleText.setString("合成耄孩子");
+    titleText.setString(toUTF8String("合成耄孩子"));
     titleText.setCharacterSize(64);
     titleText.setFillColor(sf::Color::White);
     titleText.setPosition(250, 100);
@@ -339,7 +422,7 @@ void Game::setupMainMenu() {
 void Game::setupVersionMenu() {
     // Version selection title
     versionTitleText.setFont(font);
-    versionTitleText.setString("选择游戏版本");
+    versionTitleText.setString(toUTF8String("选择游戏版本"));
     versionTitleText.setCharacterSize(48);
     versionTitleText.setFillColor(sf::Color::White);
     versionTitleText.setPosition(280, 100);
@@ -357,7 +440,7 @@ void Game::setupVersionMenu() {
         
         // Button text
         versionButtonTexts[i].setFont(font);
-        versionButtonTexts[i].setString(versionLabels[i]);
+        versionButtonTexts[i].setString(toUTF8String(versionLabels[i]));
         versionButtonTexts[i].setCharacterSize(28);
         versionButtonTexts[i].setFillColor(sf::Color::White);
         sf::FloatRect textRect = versionButtonTexts[i].getLocalBounds();
@@ -428,8 +511,8 @@ void Game::processEvents() {
             }
 
             // 16达成界面点击处理
-            if (currentState == GameState::GAME && achievedSixteen && sixteenDialogShown) {
-                handleSixteenDialogClick(mousePos);
+            if (currentState == GameState::GAME && achievedWin && winAchievementDialogShown) {
+                handleWinAchievementDialogClick(mousePos);
                 continue;
             }
 
@@ -437,6 +520,21 @@ void Game::processEvents() {
             if (currentState == GameState::GAME && gameOver && !gameWon) {
                 handleGameOverDialogClick(mousePos);
                 continue;
+            }
+
+            // 暂停界面点击处理
+            if (currentState == GameState::GAME && isPaused) {
+                handlePauseDialogClick(mousePos);
+                continue;
+            }
+
+            // 暂停按钮点击处理
+            if (currentState == GameState::GAME && !gameOver && !isPaused && !winAchievementDialogShown && !winDialogShown) {
+                sf::FloatRect pauseButtonBounds(WINDOW_WIDTH - 100, 20, 80, 40);
+                if (pauseButtonBounds.contains(mousePos)) {
+                    isPaused = true;
+                    continue;
+                }
             }
 
             // Menu click logic
@@ -477,15 +575,27 @@ void Game::handleGameInput(sf::Keyboard::Key key) {
         return;
     }
     
-    // 如果显示16达成对话框，优先处理16达成界面的输入
-    if (achievedSixteen && sixteenDialogShown) {
-        handleSixteenDialogKeyInput(key);
+    // 如果显示胜利达成对话框，优先处理胜利达成界面的输入
+    if (achievedWin && winAchievementDialogShown) {
+        handleWinAchievementDialogKeyInput(key);
         return;
     }
     
     // 如果显示游戏结束对话框，优先处理游戏结束界面的输入
     if (gameOver && !gameWon) {
         handleGameOverDialogKeyInput(key);
+        return;
+    }
+    
+    // 如果显示暂停对话框，优先处理暂停界面的输入
+    if (isPaused) {
+        handlePauseDialogKeyInput(key);
+        return;
+    }
+    
+    // 检查暂停键
+    if (key == sf::Keyboard::P) {
+        isPaused = true;
         return;
     }
     
@@ -590,7 +700,7 @@ void Game::animateGifOnCover(sf::RenderWindow& window, sf::Texture& gifTexture) 
     
     // 进一步调整Y位置，避免与左下角和右下角的装饰GIF冲突
     // 装饰GIF位置是WINDOW_HEIGHT - 200，为了避免冲突，移动GIF需要更靠上
-    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 250; // 从-120改为-250，再往上移动130像素
+    float gifYPosition = WINDOW_HEIGHT - (gifTexture.getSize().y * gifScale) - 100; // 从-120改为-250，再往上移动130像素
     
     gifSprite.setPosition(gifXPosition, gifYPosition);
     window.draw(gifSprite);
@@ -711,28 +821,75 @@ void Game::render() {
             window.draw(winQuitText);
         }
         
-        // 如果达成16且显示对话框，绘制16达成界面
-        if (achievedSixteen && sixteenDialogShown) {
-            window.draw(sixteenBackground);
-            window.draw(sixteenBox);
-            window.draw(sixteenSprite);
-            window.draw(sixteenText);
-            window.draw(sixteenContinueButton);
-            window.draw(sixteenContinueText);
-            window.draw(sixteenMenuButton);
-            window.draw(sixteenMenuText);
+        // 如果达成胜利且显示对话框，绘制胜利达成界面
+        if (achievedWin && winAchievementDialogShown) {
+            window.draw(winAchievementBackground);
+            window.draw(winAchievementBox);
+            window.draw(winAchievementSprite);
+            window.draw(winAchievementText);
+            
+            // 绘制圆角按钮
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80), 
+                sf::Vector2f(150, 60), 
+                sf::Color(220, 50, 50), // 红色继续游戏按钮
+                12.0f);
+            
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80), 
+                sf::Vector2f(150, 60), 
+                sf::Color(50, 180, 50), // 绿色返回主菜单按钮
+                12.0f);
+            
+            window.draw(winAchievementContinueText);
+            window.draw(winAchievementMenuText);
         }
         
         // 如果游戏结束且显示对话框，绘制游戏结束界面
-        if (gameOver && !gameWon && !achievedSixteen) {
+        if (gameOver && !gameWon) {
             window.draw(gameOverBackground);
             window.draw(gameOverBox);
             window.draw(gameOverSprite);
             window.draw(gameOverDialogText);
-            window.draw(gameOverRestartButton);
+            
+            // 绘制圆角按钮
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80), 
+                sf::Vector2f(150, 60), 
+                sf::Color(220, 50, 50), // 红色重新开始按钮
+                12.0f);
+            
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80), 
+                sf::Vector2f(150, 60), 
+                sf::Color(50, 180, 50), // 绿色返回主菜单按钮
+                12.0f);
+            
             window.draw(gameOverRestartText);
-            window.draw(gameOverMenuButton);
             window.draw(gameOverMenuText);
+        }
+        
+        // 如果游戏暂停，绘制暂停界面
+        if (isPaused) {
+            window.draw(pauseBackground);
+            window.draw(pauseBox);
+            window.draw(pauseText);
+            
+            // 绘制圆角按钮
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 40), 
+                sf::Vector2f(200, 60), 
+                sf::Color(50, 180, 50), // 绿色继续游戏按钮
+                12.0f);
+            
+            drawRoundedRectangle(window, 
+                sf::Vector2f(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 + 60), 
+                sf::Vector2f(200, 60), 
+                sf::Color(220, 50, 50), // 红色返回主菜单按钮
+                12.0f);
+            
+            window.draw(pauseContinueText);
+            window.draw(pauseMenuText);
         }
     } else if (currentState == GameState::EXIT_CONFIRM) {
         // 根据当前状态绘制背景
@@ -747,9 +904,21 @@ void Game::render() {
         window.draw(exitConfirmBackground);
         window.draw(exitConfirmBox);
         window.draw(exitConfirmText);
-        window.draw(exitConfirmYesButton);
+        
+        // 绘制圆角按钮
+        drawRoundedRectangle(window, 
+            sf::Vector2f(WINDOW_WIDTH/2 - 140, WINDOW_HEIGHT/2 + 20), 
+            sf::Vector2f(120, 50), 
+            sf::Color(100, 255, 100), // 绿色是按钮
+            12.0f);
+        
+        drawRoundedRectangle(window, 
+            sf::Vector2f(WINDOW_WIDTH/2 + 20, WINDOW_HEIGHT/2 + 20), 
+            sf::Vector2f(120, 50), 
+            sf::Color(255, 100, 100), // 红色否按钮
+            12.0f);
+        
         window.draw(exitConfirmYesText);
-        window.draw(exitConfirmNoButton);
         window.draw(exitConfirmNoText);
     }
 
@@ -762,7 +931,7 @@ void Game::renderGame() {
     // 更新分数显示
     std::stringstream ss;
     ss << "分数: " << score;
-    scoreText.setString(ss.str());
+    scoreText.setString(toUTF8String(ss.str()));
     window.draw(scoreText);
     
     // 绘制网格
@@ -823,6 +992,16 @@ void Game::renderGame() {
     if (gameOver) {
         window.draw(gameOverText);
         window.draw(restartText);
+    }
+    
+    // 绘制右上角暂停按钮（只在游戏进行中且未暂停时显示，不受胜利对话框影响）
+    if (!gameOver && !isPaused && !winAchievementDialogShown && !winDialogShown) {
+        drawRoundedRectangle(window, 
+            sf::Vector2f(WINDOW_WIDTH - 100, 20), 
+            sf::Vector2f(80, 40), 
+            sf::Color(100, 100, 100, 200), // 半透明灰色
+            8.0f);
+        window.draw(pauseButtonText);
     }
 }
 
@@ -900,8 +1079,9 @@ void Game::initializeGame(int size, GameVersion version) {
     gameOver = false;
     gameWon = false;
     winDialogShown = false;
-    achievedSixteen = false;
-    sixteenDialogShown = false;
+    achievedWin = false;
+    winAchievementDialogShown = false;
+    isPaused = false;
     
     // 添加初始方块
     addRandomTile();
@@ -983,10 +1163,10 @@ bool Game::moveTiles(int dx, int dy) {
                     grid[nextY][nextX] *= 2;
                     score += grid[nextY][nextX];
                     
-                    // 检测是否首次达到16
-                    if (grid[nextY][nextX] == 16 && !achievedSixteen) {
-                        achievedSixteen = true;
-                        sixteenDialogShown = true;
+                    // 检测是否首次达到胜利条件
+                    if (grid[nextY][nextX] == WIN_VALUE && !achievedWin) {
+                        achievedWin = true;
+                        winAchievementDialogShown = true;
                     }
                     
                     // 检测是否达到2048胜利条件
@@ -1178,51 +1358,60 @@ void Game::updateGifFrame(sf::Texture& texture, int value) {
     }
 }
 
-void Game::setupSixteenUI() {
+void Game::setupWinAchievementUI() {
     // Semi-transparent background
-    sixteenBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
-    sixteenBackground.setFillColor(sf::Color(0, 0, 0, 150));
+    winAchievementBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    winAchievementBackground.setFillColor(sf::Color(0, 0, 0, 150));
     
     // Achievement dialog box with rounded corners effect
-    sixteenBox.setSize(sf::Vector2f(600, 400));
-    sixteenBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
-    sixteenBox.setFillColor(sf::Color(250, 248, 239));
+    winAchievementBox.setSize(sf::Vector2f(600, 400));
+    winAchievementBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
+    winAchievementBox.setFillColor(sf::Color(250, 248, 239));
     
-    // Achievement sprite
-    sixteenSprite.setTexture(winTexture);
-    float spriteScale = 200.0f / std::max(winTexture.getSize().x, winTexture.getSize().y);
-    sixteenSprite.setScale(spriteScale, spriteScale);
-    sixteenSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
+    // Achievement sprite (win image) - 将在setupWinSprites中设置
+    // 这里只设置默认位置，实际纹理和位置会在图片加载后设置
+    winAchievementSprite.setPosition(WINDOW_WIDTH/2 - 75, WINDOW_HEIGHT/2 - 130);
     
-    // "First 16!!" text
-    sixteenText.setFont(font);
-    sixteenText.setString("首次合成16!!");
-    sixteenText.setCharacterSize(48);
-    sixteenText.setFillColor(sf::Color::Red);
-    sixteenText.setPosition(WINDOW_WIDTH/2 - 140, WINDOW_HEIGHT/2 - 20);
+    // "You Win!!" text
+    winAchievementText.setFont(font);
+    winAchievementText.setString(toUTF8String("你赢了!!"));
+    winAchievementText.setCharacterSize(36);
+    winAchievementText.setFillColor(sf::Color::Red);
+    // 只左右居中，不上下居中
+    sf::FloatRect winTextRect = winAchievementText.getLocalBounds();
+    winAchievementText.setOrigin(winTextRect.left + winTextRect.width/2.0f, 0);
+    winAchievementText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 20);
     
-    // Continue button
-    sixteenContinueButton.setSize(sf::Vector2f(150, 60));
-    sixteenContinueButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
-    sixteenContinueButton.setFillColor(sf::Color(143, 122, 102));
+    // Continue button (红色圆角按钮)
+    winAchievementContinueButton.setSize(sf::Vector2f(150, 60));
+    winAchievementContinueButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
+    winAchievementContinueButton.setFillColor(sf::Color(220, 50, 50)); // 红色
     
-    // Menu button
-    sixteenMenuButton.setSize(sf::Vector2f(150, 60));
-    sixteenMenuButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
-    sixteenMenuButton.setFillColor(sf::Color(143, 122, 102));
+    // Menu button (绿色圆角按钮)
+    winAchievementMenuButton.setSize(sf::Vector2f(150, 60));
+    winAchievementMenuButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
+    winAchievementMenuButton.setFillColor(sf::Color(50, 180, 50)); // 绿色
     
     // Button texts
-    sixteenContinueText.setFont(font);
-    sixteenContinueText.setString("继续游戏(Y)");
-    sixteenContinueText.setCharacterSize(18);
-    sixteenContinueText.setFillColor(sf::Color::White);
-    sixteenContinueText.setPosition(WINDOW_WIDTH/2 - 170, WINDOW_HEIGHT/2 + 95);
+    winAchievementContinueText.setFont(font);
+    winAchievementContinueText.setString(toUTF8String("继续游戏(Y)"));
+    winAchievementContinueText.setCharacterSize(20);
+    winAchievementContinueText.setFillColor(sf::Color::White);
+    // 居中对齐
+    sf::FloatRect continueTextRect = winAchievementContinueText.getLocalBounds();
+    winAchievementContinueText.setOrigin(continueTextRect.left + continueTextRect.width/2.0f,
+                                        continueTextRect.top + continueTextRect.height/2.0f);
+    winAchievementContinueText.setPosition(WINDOW_WIDTH/2 - 105, WINDOW_HEIGHT/2 + 110);
     
-    sixteenMenuText.setFont(font);
-    sixteenMenuText.setString("返回主界面(M)");
-    sixteenMenuText.setCharacterSize(18);
-    sixteenMenuText.setFillColor(sf::Color::White);
-    sixteenMenuText.setPosition(WINDOW_WIDTH/2 + 35, WINDOW_HEIGHT/2 + 95);
+    winAchievementMenuText.setFont(font);
+    winAchievementMenuText.setString(toUTF8String("返回主菜单(M)"));
+    winAchievementMenuText.setCharacterSize(20);
+    winAchievementMenuText.setFillColor(sf::Color::White);
+    // 居中对齐
+    sf::FloatRect menuTextRect = winAchievementMenuText.getLocalBounds();
+    winAchievementMenuText.setOrigin(menuTextRect.left + menuTextRect.width/2.0f,
+                                    menuTextRect.top + menuTextRect.height/2.0f);
+    winAchievementMenuText.setPosition(WINDOW_WIDTH/2 + 105, WINDOW_HEIGHT/2 + 110);
 }
 
 void Game::setupGameOverUI() {
@@ -1235,71 +1424,80 @@ void Game::setupGameOverUI() {
     gameOverBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
     gameOverBox.setFillColor(sf::Color(250, 248, 239));
     
-    // Game over sprite
-    gameOverSprite.setTexture(loseTexture);
-    float spriteScale = 200.0f / std::max(loseTexture.getSize().x, loseTexture.getSize().y);
-    gameOverSprite.setScale(spriteScale, spriteScale);
-    gameOverSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
+    // Game over sprite (lose image) - 将在setupWinSprites中设置
+    // 这里只设置默认位置，实际纹理和位置会在图片加载后设置
+    gameOverSprite.setPosition(WINDOW_WIDTH/2 - 75, WINDOW_HEIGHT/2 - 130);
     
-    // "Game Over!!" text
+    // "You Lose!!" text
     gameOverDialogText.setFont(font);
-    gameOverDialogText.setString("游戏结束!!");
-    gameOverDialogText.setCharacterSize(48);
+    gameOverDialogText.setString(toUTF8String("你输了!!"));
+    gameOverDialogText.setCharacterSize(36);
     gameOverDialogText.setFillColor(sf::Color::Red);
-    gameOverDialogText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 20);
+    // 只左右居中，不上下居中
+    sf::FloatRect loseTextRect = gameOverDialogText.getLocalBounds();
+    gameOverDialogText.setOrigin(loseTextRect.left + loseTextRect.width/2.0f, 0);
+    gameOverDialogText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 20);
     
-    // Restart button
+    // Restart button (红色圆角按钮)
     gameOverRestartButton.setSize(sf::Vector2f(150, 60));
     gameOverRestartButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
-    gameOverRestartButton.setFillColor(sf::Color(143, 122, 102));
+    gameOverRestartButton.setFillColor(sf::Color(220, 50, 50)); // 红色
     
-    // Menu button
+    // Menu button (绿色圆角按钮)
     gameOverMenuButton.setSize(sf::Vector2f(150, 60));
     gameOverMenuButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
-    gameOverMenuButton.setFillColor(sf::Color(143, 122, 102));
+    gameOverMenuButton.setFillColor(sf::Color(50, 180, 50)); // 绿色
     
     // Button texts
     gameOverRestartText.setFont(font);
-    gameOverRestartText.setString("继续游戏(Y)");
-    gameOverRestartText.setCharacterSize(18);
+    gameOverRestartText.setString(toUTF8String("重新开始(R)"));
+    gameOverRestartText.setCharacterSize(20);
     gameOverRestartText.setFillColor(sf::Color::White);
-    gameOverRestartText.setPosition(WINDOW_WIDTH/2 - 170, WINDOW_HEIGHT/2 + 95);
+    // 居中对齐
+    sf::FloatRect restartTextRect = gameOverRestartText.getLocalBounds();
+    gameOverRestartText.setOrigin(restartTextRect.left + restartTextRect.width/2.0f,
+                                 restartTextRect.top + restartTextRect.height/2.0f);
+    gameOverRestartText.setPosition(WINDOW_WIDTH/2 - 105, WINDOW_HEIGHT/2 + 110);
     
     gameOverMenuText.setFont(font);
-    gameOverMenuText.setString("返回主界面(M)");
-    gameOverMenuText.setCharacterSize(18);
+    gameOverMenuText.setString(toUTF8String("返回主菜单(M)"));
+    gameOverMenuText.setCharacterSize(20);
     gameOverMenuText.setFillColor(sf::Color::White);
-    gameOverMenuText.setPosition(WINDOW_WIDTH/2 + 35, WINDOW_HEIGHT/2 + 95);
+    // 居中对齐
+    sf::FloatRect gameOverMenuTextRect = gameOverMenuText.getLocalBounds();
+    gameOverMenuText.setOrigin(gameOverMenuTextRect.left + gameOverMenuTextRect.width/2.0f,
+                              gameOverMenuTextRect.top + gameOverMenuTextRect.height/2.0f);
+    gameOverMenuText.setPosition(WINDOW_WIDTH/2 + 105, WINDOW_HEIGHT/2 + 110);
 }
 
-void Game::handleSixteenDialogClick(const sf::Vector2f& mousePos) {
+void Game::handleWinAchievementDialogClick(const sf::Vector2f& mousePos) {
     // 检查Continue按钮
-    if (sixteenContinueButton.getGlobalBounds().contains(mousePos)) {
-        sixteenDialogShown = false;
+    if (winAchievementContinueButton.getGlobalBounds().contains(mousePos)) {
+        winAchievementDialogShown = false;
         return;
     }
     
     // 检查Menu按钮
-    if (sixteenMenuButton.getGlobalBounds().contains(mousePos)) {
+    if (winAchievementMenuButton.getGlobalBounds().contains(mousePos)) {
         currentState = GameState::MAIN_MENU;
-        sixteenDialogShown = false;
-        achievedSixteen = false;
+        winAchievementDialogShown = false;
+        achievedWin = false;
         return;
     }
 }
 
-void Game::handleSixteenDialogKeyInput(sf::Keyboard::Key key) {
+void Game::handleWinAchievementDialogKeyInput(sf::Keyboard::Key key) {
     if (key == sf::Keyboard::Y) {
         // Continue game
-        sixteenDialogShown = false;
+        winAchievementDialogShown = false;
         return;
     }
     
     if (key == sf::Keyboard::M) {
         // Go to main menu
         currentState = GameState::MAIN_MENU;
-        sixteenDialogShown = false;
-        achievedSixteen = false;
+        winAchievementDialogShown = false;
+        achievedWin = false;
         return;
     }
 }
@@ -1319,7 +1517,7 @@ void Game::handleGameOverDialogClick(const sf::Vector2f& mousePos) {
 }
 
 void Game::handleGameOverDialogKeyInput(sf::Keyboard::Key key) {
-    if (key == sf::Keyboard::Y) {
+    if (key == sf::Keyboard::R) {
         // Restart game
         resetGame();
         return;
@@ -1328,6 +1526,182 @@ void Game::handleGameOverDialogKeyInput(sf::Keyboard::Key key) {
     if (key == sf::Keyboard::M) {
         // Go to main menu
         currentState = GameState::MAIN_MENU;
+        return;
+    }
+}
+
+void Game::setupWinSprites() {
+    // 重新设置胜利界面的图片
+    if (winTexture.getSize().x > 0 && winTexture.getSize().y > 0) {
+        // 设置真正的胜利界面图片
+        winSprite.setTexture(winTexture);
+        float spriteScale = 150.0f / std::max(winTexture.getSize().x, winTexture.getSize().y);
+        winSprite.setScale(spriteScale, spriteScale);
+        float spriteWidth = winTexture.getSize().x * spriteScale;
+        float spriteHeight = winTexture.getSize().y * spriteScale;
+        winSprite.setPosition(WINDOW_WIDTH/2 - spriteWidth/2, WINDOW_HEIGHT/2 - 160);
+        
+        // 设置胜利达成界面图片
+        winAchievementSprite.setTexture(winTexture);
+        winAchievementSprite.setScale(spriteScale, spriteScale);
+        winAchievementSprite.setPosition(WINDOW_WIDTH/2 - spriteWidth/2, WINDOW_HEIGHT/2 - 160);
+        
+        // 暂停界面不需要图片
+        
+        std::cout << "✓ 胜利图片设置完成: 位置(" << (WINDOW_WIDTH/2 - spriteWidth/2) << ", " << (WINDOW_HEIGHT/2 - 180) << "), 大小(" << spriteWidth << "x" << spriteHeight << ")" << std::endl;
+    }
+    
+    // 重新设置游戏结束界面的图片
+    if (loseTexture.getSize().x > 0 && loseTexture.getSize().y > 0) {
+        gameOverSprite.setTexture(loseTexture);
+        float spriteScale = 150.0f / std::max(loseTexture.getSize().x, loseTexture.getSize().y);
+        gameOverSprite.setScale(spriteScale, spriteScale);
+        float spriteWidth = loseTexture.getSize().x * spriteScale;
+        float spriteHeight = loseTexture.getSize().y * spriteScale;
+        gameOverSprite.setPosition(WINDOW_WIDTH/2 - spriteWidth/2, WINDOW_HEIGHT/2 - 160);
+        
+        std::cout << "✓ 失败图片设置完成: 位置(" << (WINDOW_WIDTH/2 - spriteWidth/2) << ", " << (WINDOW_HEIGHT/2 - 180) << "), 大小(" << spriteWidth << "x" << spriteHeight << ")" << std::endl;
+    }
+}
+
+void Game::drawRoundedRectangle(sf::RenderWindow& window, const sf::Vector2f& position, const sf::Vector2f& size, const sf::Color& color, float cornerRadius) {
+    // 用SFML的CircleShape做真正的圆角 - 简单有效
+    
+    float radius = std::min(cornerRadius, std::min(size.x, size.y) / 2.0f);
+    
+    // 主体矩形（中间部分）
+    sf::RectangleShape mainRect(sf::Vector2f(size.x, size.y - 2 * radius));
+    mainRect.setPosition(position.x, position.y + radius);
+    mainRect.setFillColor(color);
+    window.draw(mainRect);
+    
+    // 上下横条
+    sf::RectangleShape topRect(sf::Vector2f(size.x - 2 * radius, radius));
+    topRect.setPosition(position.x + radius, position.y);
+    topRect.setFillColor(color);
+    window.draw(topRect);
+    
+    sf::RectangleShape bottomRect(sf::Vector2f(size.x - 2 * radius, radius));
+    bottomRect.setPosition(position.x + radius, position.y + size.y - radius);
+    bottomRect.setFillColor(color);
+    window.draw(bottomRect);
+    
+    // 四个真正的圆角
+    sf::CircleShape corner(radius);
+    corner.setFillColor(color);
+    
+    // 左上角
+    corner.setPosition(position.x, position.y);
+    window.draw(corner);
+    
+    // 右上角
+    corner.setPosition(position.x + size.x - 2 * radius, position.y);
+    window.draw(corner);
+    
+    // 左下角
+    corner.setPosition(position.x, position.y + size.y - 2 * radius);
+    window.draw(corner);
+    
+    // 右下角
+    corner.setPosition(position.x + size.x - 2 * radius, position.y + size.y - 2 * radius);
+    window.draw(corner);
+}
+
+void Game::setupPauseUI() {
+    // Semi-transparent background
+    pauseBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    pauseBackground.setFillColor(sf::Color(0, 0, 0, 150));
+    
+    // Pause dialog box with rounded corners effect
+    pauseBox.setSize(sf::Vector2f(600, 400));
+    pauseBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
+    pauseBox.setFillColor(sf::Color(250, 248, 239));
+    
+    // 暂停界面不需要图片
+    
+    // "Game Paused" text - 继续往上移动
+    pauseText.setFont(font);
+    pauseText.setString(toUTF8String("游戏暂停"));
+    pauseText.setCharacterSize(36);
+    pauseText.setFillColor(sf::Color::Blue);
+    // 只左右居中，不上下居中
+    sf::FloatRect pauseTextRect = pauseText.getLocalBounds();
+    pauseText.setOrigin(pauseTextRect.left + pauseTextRect.width/2.0f, 0);
+    pauseText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 - 120); // 从-60改为-120，再往上移动60像素
+    
+    // Continue button (绿色圆角按钮) - 上方，继续往上移动
+    pauseContinueButton.setSize(sf::Vector2f(200, 60));
+    pauseContinueButton.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 40); // 从+20改为-40，往上移动60像素
+    pauseContinueButton.setFillColor(sf::Color(50, 180, 50)); // 绿色
+    
+    // Menu button (红色圆角按钮) - 下方，继续往上移动
+    pauseMenuButton.setSize(sf::Vector2f(200, 60));
+    pauseMenuButton.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 + 60); // 从+120改为+60，往上移动60像素
+    pauseMenuButton.setFillColor(sf::Color(220, 50, 50)); // 红色
+    
+    // Button texts
+    pauseContinueText.setFont(font);
+    pauseContinueText.setString(toUTF8String("继续游戏(C)"));
+    pauseContinueText.setCharacterSize(20);
+    pauseContinueText.setFillColor(sf::Color::White);
+    // 居中对齐
+    sf::FloatRect continueTextRect = pauseContinueText.getLocalBounds();
+    pauseContinueText.setOrigin(continueTextRect.left + continueTextRect.width/2.0f,
+                               continueTextRect.top + continueTextRect.height/2.0f);
+    pauseContinueText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 - 10); // 从+50改为-10，往上移动60像素
+    
+    pauseMenuText.setFont(font);
+    pauseMenuText.setString(toUTF8String("返回主菜单(M)"));
+    pauseMenuText.setCharacterSize(20);
+    pauseMenuText.setFillColor(sf::Color::White);
+    // 居中对齐
+    sf::FloatRect pauseMenuTextRect = pauseMenuText.getLocalBounds();
+    pauseMenuText.setOrigin(pauseMenuTextRect.left + pauseMenuTextRect.width/2.0f,
+                           pauseMenuTextRect.top + pauseMenuTextRect.height/2.0f);
+    pauseMenuText.setPosition(WINDOW_WIDTH/2, WINDOW_HEIGHT/2 + 90); // 从+150改为+90，往上移动60像素
+    
+    // 右上角暂停按钮
+    pauseButton.setSize(sf::Vector2f(80, 40));
+    pauseButton.setPosition(WINDOW_WIDTH - 100, 20); // 右上角位置
+    pauseButton.setFillColor(sf::Color(100, 100, 100, 200)); // 半透明灰色
+    
+    pauseButtonText.setFont(font);
+    pauseButtonText.setString(toUTF8String("暂停(P)"));
+    pauseButtonText.setCharacterSize(16);
+    pauseButtonText.setFillColor(sf::Color::White);
+    // 居中对齐
+    sf::FloatRect pauseButtonTextRect = pauseButtonText.getLocalBounds();
+    pauseButtonText.setOrigin(pauseButtonTextRect.left + pauseButtonTextRect.width/2.0f,
+                             pauseButtonTextRect.top + pauseButtonTextRect.height/2.0f);
+    pauseButtonText.setPosition(WINDOW_WIDTH - 60, 40); // 按钮中心位置
+}
+
+void Game::handlePauseDialogClick(const sf::Vector2f& mousePos) {
+    // 检查Continue按钮
+    if (pauseContinueButton.getGlobalBounds().contains(mousePos)) {
+        isPaused = false;
+        return;
+    }
+    
+    // 检查Menu按钮
+    if (pauseMenuButton.getGlobalBounds().contains(mousePos)) {
+        currentState = GameState::MAIN_MENU;
+        isPaused = false;
+        return;
+    }
+}
+
+void Game::handlePauseDialogKeyInput(sf::Keyboard::Key key) {
+    if (key == sf::Keyboard::C) {
+        // Continue game
+        isPaused = false;
+        return;
+    }
+    
+    if (key == sf::Keyboard::M) {
+        // Go to main menu
+        currentState = GameState::MAIN_MENU;
+        isPaused = false;
         return;
     }
 }
