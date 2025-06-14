@@ -58,6 +58,7 @@ private:
     sf::Texture tileTexture;
     sf::Texture winTexture;
     sf::Texture loseTexture;
+    sf::Texture texture32768; // 32768的jpg纹理
     std::array<sf::Color, 12> tileColors;
     
     // UI Elements - Main Menu

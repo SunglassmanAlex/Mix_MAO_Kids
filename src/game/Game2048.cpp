@@ -146,6 +146,8 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"合成耄孩
         std::cerr << "Failed to load second cover GIF" << std::endl;
     }
     
+
+    
     // 加载主菜单装饰动画GIF
     std::vector<std::string> decorativeFiles = {
         "assets/picture/4.gif",
@@ -155,12 +157,17 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"合成耄孩
         "assets/picture/64.gif"
     };
     
+    // 对应的方块值，用于获取正确的背景色
+    std::vector<int> decorativeValues = {4, 8, 16, 32, 64};
+    
     decorativeTextures.resize(decorativeFiles.size());
     decorativeSprites.resize(decorativeFiles.size());
     decorativeGifWrappers.resize(decorativeFiles.size());
     
     for (size_t i = 0; i < decorativeFiles.size(); ++i) {
-        if (decorativeGifWrappers[i].loadFromFile(decorativeFiles[i], mainMenuBackgroundColor)) {
+        // 所有装饰GIF都使用主菜单背景色，保持一致的渲染方式
+        sf::Color decorativeBackgroundColor = mainMenuBackgroundColor;
+        if (decorativeGifWrappers[i].loadFromFile(decorativeFiles[i], decorativeBackgroundColor)) {
             decorativeTextures[i] = decorativeGifWrappers[i].getCurrentFrame();
             decorativeSprites[i].setTexture(decorativeTextures[i]);
             
@@ -193,8 +200,16 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"合成耄孩
         }
     }
 
-    // 加载所有可能的GIF纹理
-    std::vector<int> values = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768};
+    // 先加载32768的jpg纹理
+    if (!texture32768.loadFromFile("assets/picture/32768.jpg")) {
+        std::cerr << "✗ Failed to load 32768.jpg" << std::endl;
+    } else {
+        std::cout << "✓ Successfully loaded 32768.jpg" << std::endl;
+        tileGifTexturesMap[32768] = texture32768;
+    }
+
+    // 加载所有可能的GIF纹理（除了32768）
+    std::vector<int> values = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384};
     for (int value : values) {
         std::string filename = "assets/picture/" + std::to_string(value) + ".gif";
         GifWrapper wrapper;
@@ -208,22 +223,9 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"合成耄孩
             gifWrappers[value] = std::move(wrapper);
         } else {
             std::cerr << "Failed to load GIF: " << filename << std::endl;
-            // 如果加载失败，使用32768.gif作为后备
-            if (value != 32768) {
-                GifWrapper fallbackWrapper;
-                sf::Color fallbackBackgroundColor = getTileColor(32768);
-                if (fallbackWrapper.loadFromFile("assets/picture/32768.gif", fallbackBackgroundColor)) {
-                    tileGifTexturesMap[value] = fallbackWrapper.getCurrentFrame();
-                    gifWrappers[value] = std::move(fallbackWrapper);
-                } else {
-                    // 创建后备纹理
-                    sf::Texture fallback;
-                    fallback.create(100, 100);
-                    sf::Image img;
-                    img.create(100, 100, tileBackgroundColor);
-                    fallback.loadFromImage(img);
-                    tileGifTexturesMap[value] = fallback;
-                }
+            // 如果加载失败，使用32768.jpg作为后备
+            if (texture32768.getSize().x > 0) {
+                tileGifTexturesMap[value] = texture32768;
             } else {
                 // 创建后备纹理
                 sf::Texture fallback;
