@@ -351,7 +351,7 @@ void Game::setupWinUI() {
     
     // Button texts
     winContinueText.setFont(font);
-    winContinueText.setString(toUTF8String("继续(C)"));
+    winContinueText.setString(toUTF8String("继续(Y)"));
     winContinueText.setCharacterSize(20);
     winContinueText.setFillColor(sf::Color::White);
     winContinueText.setPosition(WINDOW_WIDTH/2 - 165, WINDOW_HEIGHT/2 + 95);
@@ -483,7 +483,8 @@ void Game::processEvents() {
             if (currentState == GameState::GAME) {
                 if (event.key.code == sf::Keyboard::R) {
                     resetGame();
-                } else if (!gameOver) {
+                } else {
+                    // 总是调用handleGameInput，让它内部处理各种对话框状态
                     handleGameInput(event.key.code);
                 }
             }
@@ -665,7 +666,7 @@ void Game::handleWinDialogClick(const sf::Vector2f& mousePos) {
 }
 
 void Game::handleWinDialogKeyInput(sf::Keyboard::Key key) {
-    if (key == sf::Keyboard::C) {
+    if (key == sf::Keyboard::Y) {
         // Continue game
         winDialogShown = false;
         return;
@@ -1643,7 +1644,7 @@ void Game::setupPauseUI() {
     
     // Button texts
     pauseContinueText.setFont(font);
-    pauseContinueText.setString(toUTF8String("继续游戏(C)"));
+    pauseContinueText.setString(toUTF8String("继续游戏(Y)"));
     pauseContinueText.setCharacterSize(20);
     pauseContinueText.setFillColor(sf::Color::White);
     // 居中对齐
@@ -1694,7 +1695,7 @@ void Game::handlePauseDialogClick(const sf::Vector2f& mousePos) {
 }
 
 void Game::handlePauseDialogKeyInput(sf::Keyboard::Key key) {
-    if (key == sf::Keyboard::C) {
+    if (key == sf::Keyboard::Y) {
         // Continue game
         isPaused = false;
         return;
