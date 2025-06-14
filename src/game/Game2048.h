@@ -49,11 +49,14 @@ private:
     bool gameOver;
     bool gameWon;
     bool winDialogShown;
+    bool achievedSixteen;
+    bool sixteenDialogShown;
     
     // Resources
     sf::Font font;
     sf::Texture tileTexture;
     sf::Texture winTexture;
+    sf::Texture loseTexture;
     std::array<sf::Color, 12> tileColors;
     
     // UI Elements - Main Menu
@@ -90,8 +93,30 @@ private:
     sf::Text winContinueText;
     sf::Text winQuitText;
 
+    // Sixteen achievement dialog UI
+    sf::RectangleShape sixteenBackground;
+    sf::RectangleShape sixteenBox;
+    sf::Sprite sixteenSprite;
+    sf::Text sixteenText;
+    sf::RectangleShape sixteenContinueButton;
+    sf::RectangleShape sixteenMenuButton;
+    sf::Text sixteenContinueText;
+    sf::Text sixteenMenuText;
+
+    // Game over dialog UI
+    sf::RectangleShape gameOverBackground;
+    sf::RectangleShape gameOverBox;
+    sf::Sprite gameOverSprite;
+    sf::Text gameOverDialogText;
+    sf::RectangleShape gameOverRestartButton;
+    sf::RectangleShape gameOverMenuButton;
+    sf::Text gameOverRestartText;
+    sf::Text gameOverMenuText;
+
     void setupExitConfirmUI();
     void setupWinUI();
+    void setupSixteenUI();
+    void setupGameOverUI();
 
     // Draw black and white grids in the modified version
     sf::Color getCellBackgroundColor(int x, int y) const;
@@ -115,6 +140,10 @@ private:
     void handleGameInput(sf::Keyboard::Key key);
     void handleWinDialogClick(const sf::Vector2f& mousePos);
     void handleWinDialogKeyInput(sf::Keyboard::Key key);
+    void handleSixteenDialogClick(const sf::Vector2f& mousePos);
+    void handleSixteenDialogKeyInput(sf::Keyboard::Key key);
+    void handleGameOverDialogClick(const sf::Vector2f& mousePos);
+    void handleGameOverDialogKeyInput(sf::Keyboard::Key key);
     
     // Game logic
     void initializeGame(int size, GameVersion version);

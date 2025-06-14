@@ -22,7 +22,7 @@ const sf::Color GRID_LINE_COLOR = sf::Color(119, 110, 101);
 // Animation speed - 修改这里可以调整主菜单GIF移动速度
 constexpr float GIF_MOVE_SPEED = 100.0f; // pixels per second (减慢了速度)
 
-Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"),
+Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "合成耄孩子"),
                currentState(GameState::MAIN_MENU),
                currentVersion(GameVersion::ORIGINAL),
                gridSize(4),
@@ -30,6 +30,8 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
                gameOver(false),
                gameWon(false),
                winDialogShown(false),
+               achievedSixteen(false),
+               sixteenDialogShown(false),
                gifXPosition(WINDOW_WIDTH),
                secondGifXPosition(WINDOW_WIDTH + 150) { // 第二个GIF初始位置偏移
     if (!font.loadFromFile("assets/fonts/arial.ttf")) {
@@ -40,10 +42,17 @@ Game::Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Mix MAO Game"
     initializeUI();
     setupExitConfirmUI();
     setupWinUI();
+    setupSixteenUI();
+    setupGameOverUI();
     
     // 加载胜利图片
     if (!winTexture.loadFromFile("assets/picture/win.jpg")) {
         std::cerr << "Failed to load win.jpg" << std::endl;
+    }
+
+    // 加载失败图片
+    if (!loseTexture.loadFromFile("assets/picture/lose.jpg")) {
+        std::cerr << "Failed to load lose.jpg" << std::endl;
     }
 
     // 加载主菜单封面GIF (使用主菜单背景色)
@@ -195,10 +204,10 @@ void Game::setupExitConfirmUI() {
     
     // Confirmation text
     exitConfirmText.setFont(font);
-    exitConfirmText.setString("Are you sure you want to quit?");
+    exitConfirmText.setString("确定要退出游戏吗？");
     exitConfirmText.setCharacterSize(28);
     exitConfirmText.setFillColor(sf::Color::White);
-    exitConfirmText.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 - 70);
+    exitConfirmText.setPosition(WINDOW_WIDTH/2 - 140, WINDOW_HEIGHT/2 - 70);
     
     // Yes/No buttons
     exitConfirmYesButton.setSize(sf::Vector2f(120, 50));
@@ -210,13 +219,13 @@ void Game::setupExitConfirmUI() {
     exitConfirmNoButton.setFillColor(sf::Color(255, 100, 100));
     
     exitConfirmYesText.setFont(font);
-    exitConfirmYesText.setString("Yes(Y)");
+    exitConfirmYesText.setString("是(Y)");
     exitConfirmYesText.setCharacterSize(24);
     exitConfirmYesText.setFillColor(sf::Color::White);
     exitConfirmYesText.setPosition(WINDOW_WIDTH/2 - 115, WINDOW_HEIGHT/2 + 30);
     
     exitConfirmNoText.setFont(font);
-    exitConfirmNoText.setString("No(N)");
+    exitConfirmNoText.setString("否(N)");
     exitConfirmNoText.setCharacterSize(24);
     exitConfirmNoText.setFillColor(sf::Color::White);
     exitConfirmNoText.setPosition(WINDOW_WIDTH/2 + 50, WINDOW_HEIGHT/2 + 30);
@@ -240,7 +249,7 @@ void Game::setupWinUI() {
     
     // "You win!!" text
     winText.setFont(font);
-    winText.setString("You win!!");
+    winText.setString("恭喜获胜!!");
     winText.setCharacterSize(48);
     winText.setFillColor(sf::Color::Red);
     winText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 20);
@@ -257,13 +266,13 @@ void Game::setupWinUI() {
     
     // Button texts
     winContinueText.setFont(font);
-    winContinueText.setString("Continue(C)");
+    winContinueText.setString("继续(C)");
     winContinueText.setCharacterSize(20);
     winContinueText.setFillColor(sf::Color::White);
     winContinueText.setPosition(WINDOW_WIDTH/2 - 165, WINDOW_HEIGHT/2 + 95);
     
     winQuitText.setFont(font);
-    winQuitText.setString("Quit(Esc)");
+    winQuitText.setString("退出(Esc)");
     winQuitText.setCharacterSize(20);
     winQuitText.setFillColor(sf::Color::White);
     winQuitText.setPosition(WINDOW_WIDTH/2 + 55, WINDOW_HEIGHT/2 + 95);
@@ -281,14 +290,14 @@ void Game::initializeUI() {
     
     // Game over text
     gameOverText.setFont(font);
-    gameOverText.setString("Game Over!");
+    gameOverText.setString("游戏结束!");
     gameOverText.setCharacterSize(48);
     gameOverText.setFillColor(sf::Color::Red);
     gameOverText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 50);
     
     // Restart prompt text
     restartText.setFont(font);
-    restartText.setString("Press R to Restart");
+    restartText.setString("按 R 键重新开始");
     restartText.setCharacterSize(24);
     restartText.setFillColor(sf::Color::White);
     restartText.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 + 20);
@@ -297,10 +306,10 @@ void Game::initializeUI() {
 void Game::setupMainMenu() {
     // Main menu title
     titleText.setFont(font);
-    titleText.setString("2048 Game");
+    titleText.setString("合成耄孩子");
     titleText.setCharacterSize(64);
     titleText.setFillColor(sf::Color::White);
-    titleText.setPosition(280, 100);
+    titleText.setPosition(250, 100);
     
     const std::array<std::string, 3> sizeLabels = {"4 x 4", "5 x 5", "6 x 6"};
     const std::array<sf::Color, 3> buttonColors = {
@@ -330,14 +339,14 @@ void Game::setupMainMenu() {
 void Game::setupVersionMenu() {
     // Version selection title
     versionTitleText.setFont(font);
-    versionTitleText.setString("Choose Version");
+    versionTitleText.setString("选择游戏版本");
     versionTitleText.setCharacterSize(48);
     versionTitleText.setFillColor(sf::Color::White);
     versionTitleText.setPosition(280, 100);
     
     const std::array<std::string, 2> versionLabels = {
-        "Original Version (Arrow Keys)",
-        "Diagonal Only (Q/E/Z/C Keys)"
+        "经典版本 (方向键)",
+        "对角线版本 (Q/E/Z/C键)"
     };
     
     for (size_t i = 0; i < versionButtons.size(); ++i) {
@@ -418,6 +427,18 @@ void Game::processEvents() {
                 continue;
             }
 
+            // 16达成界面点击处理
+            if (currentState == GameState::GAME && achievedSixteen && sixteenDialogShown) {
+                handleSixteenDialogClick(mousePos);
+                continue;
+            }
+
+            // 游戏结束界面点击处理
+            if (currentState == GameState::GAME && gameOver && !gameWon) {
+                handleGameOverDialogClick(mousePos);
+                continue;
+            }
+
             // Menu click logic
             if (currentState == GameState::MAIN_MENU) {
                 handleMainMenuClick(mousePos);
@@ -453,6 +474,18 @@ void Game::handleGameInput(sf::Keyboard::Key key) {
     // 如果显示胜利对话框，优先处理胜利界面的输入
     if (gameWon && winDialogShown) {
         handleWinDialogKeyInput(key);
+        return;
+    }
+    
+    // 如果显示16达成对话框，优先处理16达成界面的输入
+    if (achievedSixteen && sixteenDialogShown) {
+        handleSixteenDialogKeyInput(key);
+        return;
+    }
+    
+    // 如果显示游戏结束对话框，优先处理游戏结束界面的输入
+    if (gameOver && !gameWon) {
+        handleGameOverDialogKeyInput(key);
         return;
     }
     
@@ -677,6 +710,30 @@ void Game::render() {
             window.draw(winQuitButton);
             window.draw(winQuitText);
         }
+        
+        // 如果达成16且显示对话框，绘制16达成界面
+        if (achievedSixteen && sixteenDialogShown) {
+            window.draw(sixteenBackground);
+            window.draw(sixteenBox);
+            window.draw(sixteenSprite);
+            window.draw(sixteenText);
+            window.draw(sixteenContinueButton);
+            window.draw(sixteenContinueText);
+            window.draw(sixteenMenuButton);
+            window.draw(sixteenMenuText);
+        }
+        
+        // 如果游戏结束且显示对话框，绘制游戏结束界面
+        if (gameOver && !gameWon && !achievedSixteen) {
+            window.draw(gameOverBackground);
+            window.draw(gameOverBox);
+            window.draw(gameOverSprite);
+            window.draw(gameOverDialogText);
+            window.draw(gameOverRestartButton);
+            window.draw(gameOverRestartText);
+            window.draw(gameOverMenuButton);
+            window.draw(gameOverMenuText);
+        }
     } else if (currentState == GameState::EXIT_CONFIRM) {
         // 根据当前状态绘制背景
         if (!grid.empty()) {
@@ -704,7 +761,7 @@ void Game::renderGame() {
     
     // 更新分数显示
     std::stringstream ss;
-    ss << "Score: " << score;
+    ss << "分数: " << score;
     scoreText.setString(ss.str());
     window.draw(scoreText);
     
@@ -843,6 +900,8 @@ void Game::initializeGame(int size, GameVersion version) {
     gameOver = false;
     gameWon = false;
     winDialogShown = false;
+    achievedSixteen = false;
+    sixteenDialogShown = false;
     
     // 添加初始方块
     addRandomTile();
@@ -923,6 +982,12 @@ bool Game::moveTiles(int dx, int dy) {
                     merged[nextY][nextX] = true;
                     grid[nextY][nextX] *= 2;
                     score += grid[nextY][nextX];
+                    
+                    // 检测是否首次达到16
+                    if (grid[nextY][nextX] == 16 && !achievedSixteen) {
+                        achievedSixteen = true;
+                        sixteenDialogShown = true;
+                    }
                     
                     // 检测是否达到2048胜利条件
                     if (grid[nextY][nextX] == 2048 && !gameWon && !winDialogShown) {
@@ -1110,5 +1175,159 @@ void Game::updateGifFrame(sf::Texture& texture, int value) {
     if (it != gifWrappers.end()) {
         it->second.updateFrame();
         texture = it->second.getCurrentFrame();
+    }
+}
+
+void Game::setupSixteenUI() {
+    // Semi-transparent background
+    sixteenBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    sixteenBackground.setFillColor(sf::Color(0, 0, 0, 150));
+    
+    // Achievement dialog box with rounded corners effect
+    sixteenBox.setSize(sf::Vector2f(600, 400));
+    sixteenBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
+    sixteenBox.setFillColor(sf::Color(250, 248, 239));
+    
+    // Achievement sprite
+    sixteenSprite.setTexture(winTexture);
+    float spriteScale = 200.0f / std::max(winTexture.getSize().x, winTexture.getSize().y);
+    sixteenSprite.setScale(spriteScale, spriteScale);
+    sixteenSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
+    
+    // "First 16!!" text
+    sixteenText.setFont(font);
+    sixteenText.setString("首次合成16!!");
+    sixteenText.setCharacterSize(48);
+    sixteenText.setFillColor(sf::Color::Red);
+    sixteenText.setPosition(WINDOW_WIDTH/2 - 140, WINDOW_HEIGHT/2 - 20);
+    
+    // Continue button
+    sixteenContinueButton.setSize(sf::Vector2f(150, 60));
+    sixteenContinueButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
+    sixteenContinueButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Menu button
+    sixteenMenuButton.setSize(sf::Vector2f(150, 60));
+    sixteenMenuButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
+    sixteenMenuButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Button texts
+    sixteenContinueText.setFont(font);
+    sixteenContinueText.setString("继续游戏(Y)");
+    sixteenContinueText.setCharacterSize(18);
+    sixteenContinueText.setFillColor(sf::Color::White);
+    sixteenContinueText.setPosition(WINDOW_WIDTH/2 - 170, WINDOW_HEIGHT/2 + 95);
+    
+    sixteenMenuText.setFont(font);
+    sixteenMenuText.setString("返回主界面(M)");
+    sixteenMenuText.setCharacterSize(18);
+    sixteenMenuText.setFillColor(sf::Color::White);
+    sixteenMenuText.setPosition(WINDOW_WIDTH/2 + 35, WINDOW_HEIGHT/2 + 95);
+}
+
+void Game::setupGameOverUI() {
+    // Semi-transparent background
+    gameOverBackground.setSize(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    gameOverBackground.setFillColor(sf::Color(0, 0, 0, 150));
+    
+    // Game over dialog box with rounded corners effect
+    gameOverBox.setSize(sf::Vector2f(600, 400));
+    gameOverBox.setPosition(WINDOW_WIDTH/2 - 300, WINDOW_HEIGHT/2 - 200);
+    gameOverBox.setFillColor(sf::Color(250, 248, 239));
+    
+    // Game over sprite
+    gameOverSprite.setTexture(loseTexture);
+    float spriteScale = 200.0f / std::max(loseTexture.getSize().x, loseTexture.getSize().y);
+    gameOverSprite.setScale(spriteScale, spriteScale);
+    gameOverSprite.setPosition(WINDOW_WIDTH/2 - 100, WINDOW_HEIGHT/2 - 150);
+    
+    // "Game Over!!" text
+    gameOverDialogText.setFont(font);
+    gameOverDialogText.setString("游戏结束!!");
+    gameOverDialogText.setCharacterSize(48);
+    gameOverDialogText.setFillColor(sf::Color::Red);
+    gameOverDialogText.setPosition(WINDOW_WIDTH/2 - 120, WINDOW_HEIGHT/2 - 20);
+    
+    // Restart button
+    gameOverRestartButton.setSize(sf::Vector2f(150, 60));
+    gameOverRestartButton.setPosition(WINDOW_WIDTH/2 - 180, WINDOW_HEIGHT/2 + 80);
+    gameOverRestartButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Menu button
+    gameOverMenuButton.setSize(sf::Vector2f(150, 60));
+    gameOverMenuButton.setPosition(WINDOW_WIDTH/2 + 30, WINDOW_HEIGHT/2 + 80);
+    gameOverMenuButton.setFillColor(sf::Color(143, 122, 102));
+    
+    // Button texts
+    gameOverRestartText.setFont(font);
+    gameOverRestartText.setString("继续游戏(Y)");
+    gameOverRestartText.setCharacterSize(18);
+    gameOverRestartText.setFillColor(sf::Color::White);
+    gameOverRestartText.setPosition(WINDOW_WIDTH/2 - 170, WINDOW_HEIGHT/2 + 95);
+    
+    gameOverMenuText.setFont(font);
+    gameOverMenuText.setString("返回主界面(M)");
+    gameOverMenuText.setCharacterSize(18);
+    gameOverMenuText.setFillColor(sf::Color::White);
+    gameOverMenuText.setPosition(WINDOW_WIDTH/2 + 35, WINDOW_HEIGHT/2 + 95);
+}
+
+void Game::handleSixteenDialogClick(const sf::Vector2f& mousePos) {
+    // 检查Continue按钮
+    if (sixteenContinueButton.getGlobalBounds().contains(mousePos)) {
+        sixteenDialogShown = false;
+        return;
+    }
+    
+    // 检查Menu按钮
+    if (sixteenMenuButton.getGlobalBounds().contains(mousePos)) {
+        currentState = GameState::MAIN_MENU;
+        sixteenDialogShown = false;
+        achievedSixteen = false;
+        return;
+    }
+}
+
+void Game::handleSixteenDialogKeyInput(sf::Keyboard::Key key) {
+    if (key == sf::Keyboard::Y) {
+        // Continue game
+        sixteenDialogShown = false;
+        return;
+    }
+    
+    if (key == sf::Keyboard::M) {
+        // Go to main menu
+        currentState = GameState::MAIN_MENU;
+        sixteenDialogShown = false;
+        achievedSixteen = false;
+        return;
+    }
+}
+
+void Game::handleGameOverDialogClick(const sf::Vector2f& mousePos) {
+    // 检查Restart按钮
+    if (gameOverRestartButton.getGlobalBounds().contains(mousePos)) {
+        resetGame();
+        return;
+    }
+    
+    // 检查Menu按钮
+    if (gameOverMenuButton.getGlobalBounds().contains(mousePos)) {
+        currentState = GameState::MAIN_MENU;
+        return;
+    }
+}
+
+void Game::handleGameOverDialogKeyInput(sf::Keyboard::Key key) {
+    if (key == sf::Keyboard::Y) {
+        // Restart game
+        resetGame();
+        return;
+    }
+    
+    if (key == sf::Keyboard::M) {
+        // Go to main menu
+        currentState = GameState::MAIN_MENU;
+        return;
     }
 }
