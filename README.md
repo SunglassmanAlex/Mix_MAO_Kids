@@ -213,7 +213,7 @@ constexpr float GIF_MOVE_SPEED = 100.0f; // 调整GIF移动速度
 
 ## 📞 联系方式
 
-- 项目链接: [https://github.com/yourusername/my2048](https://github.com/SunglassmanAlex/Mix_MAO_Kids)
+- 项目链接: [https://github.com/SunglassmanAlex/Mix_MAO_Kids](https://github.com/SunglassmanAlex/Mix_MAO_Kids)
 - 问题反馈: [Issues](https://github.com/SunglassmanAlex/Mix_MAO_Kids/issues)
 
 ---
@@ -222,6 +222,6 @@ constexpr float GIF_MOVE_SPEED = 100.0f; // 调整GIF移动速度
 
 **如果这个项目对您有帮助，请给它一个 ⭐️**
 
-Made with ❤️ by [Sunglassman Pan]
+Made with ❤️ by [Sunglassman (Alex Pan) ]
 
 </div> 
