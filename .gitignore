@@ -11,3 +11,13 @@ startGame  # 可执行文件
 debug_*
 test_*
 gif-h/
+
+# 忽略Description文件
+Description.md
+Description.pdf
+
+# 忽略CSS样式文件
+pdf-style.css
+
+# 忽略作业PDF文件
+OOP大作业_25.pdf
