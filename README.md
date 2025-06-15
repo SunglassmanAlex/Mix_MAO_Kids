@@ -1,4 +1,4 @@
-# 合成耄孩子 (My2048)
+ # 合成耄孩子
 
 <div align="center">
 
@@ -9,9 +9,9 @@
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![SFML](https://img.shields.io/badge/SFML-2.5+-green.svg)](https://www.sfml-dev.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)]()
 
-[功能特性](#功能特性) • [快速开始](#快速开始) • [游戏玩法](#游戏玩法) • [编译指南](#编译指南) • [贡献指南](#贡献指南)
+[功能特性](#功能特性) • [快速开始](#快速开始) • [游戏玩法](#游戏玩法) • [编译指南](#编译指南) • [贡献指南](#贡献指南) • [后续规划](#后续规划)
 
 </div>
 
@@ -46,30 +46,24 @@
 
 ### 系统要求
 
-- **操作系统**: Windows 10+ 或 Ubuntu 18.04+
-- **编译器**: GCC 7+ 或 Visual Studio 2017+
+- **操作系统**: Ubuntu 18.04+ 或其他Linux发行版
+- **编译器**: GCC 7+
 - **依赖库**: SFML 2.5+
 - **CMake**: 3.10+
 
 ### 安装依赖
 
-#### Ubuntu/Debian
 ```bash
 sudo apt update
 sudo apt install build-essential cmake libsfml-dev
-```
-
-#### Windows (使用vcpkg)
-```bash
-vcpkg install sfml
 ```
 
 ### 编译运行
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/my2048.git
-cd my2048
+git clone https://github.com/yourusername/Mix_MAO_Kids.git
+cd Mix_MAO_Kids
 
 # 创建构建目录
 mkdir build && cd build
@@ -81,9 +75,7 @@ cmake ..
 cmake --build . --config Release
 
 # 运行游戏
-./my2048  # Linux
-# 或
-my2048.exe  # Windows
+./startGame
 ```
 
 ## 🎮 游戏玩法
@@ -133,7 +125,8 @@ my2048/
 │   └── main.cpp        # 程序入口
 ├── assets/
 │   ├── fonts/          # 字体文件
-│   └── picture/        # 游戏素材
+│   ├── picture/        # 游戏素材
+│   └── music/          # 音乐文件（暂未启用）
 ├── CMakeLists.txt      # CMake配置
 └── README.md
 ```
@@ -152,29 +145,34 @@ constexpr int WIN_VALUE = 16; // 改为 2048 或其他值
 constexpr float GIF_MOVE_SPEED = 100.0f; // 调整GIF移动速度
 ```
 
-#### 添加新的网格尺寸
-```cpp
-// 在 setupMainMenu() 中添加新按钮
-const std::array<std::string, 4> sizeLabels = {"4 x 4", "5 x 5", "6 x 6", "7 x 7"};
-```
+## 📅 后续规划
 
-## 🎨 素材说明
+### 音频支持（暂缓开发）
+由于WSL对音频支持的限制，游戏的音频功能目前处于暂缓开发状态。虽然音乐文件已经准备就绪（存放在`assets/music`目录下），但为了确保在WSL环境下的良好体验，我们决定将音频支持功能推迟到后续版本中实现。
 
-### GIF动画文件
-- `2.gif` - 主菜单背景动画
-- `4.gif, 8.gif, 16.gif...` - 对应数字的方块动画
-- `32768.jpg` - 高数值方块的静态图片
+> 音频功能将在以下情况下开启：
+> - Windows原生支持完成后
+> - 或WSL音频支持更加完善后
+> - 或用户在原生Linux环境下运行时
 
-### 图片文件
-- `win.jpg` - 胜利界面图片
-- `lose.jpg` - 失败界面图片
+### Windows 平台支持（计划中）
+作为后续版本的重要更新内容，我们计划添加完整的Windows平台支持：
+- Visual Studio 项目支持
+- Windows 特定的构建说明
+- SFML在Windows下的配置指南
+- 中文字体的自动检测和加载
+- 更好的Windows环境适配
 
-### 字体支持
-项目支持多种中文字体，优先级顺序：
-1. 思源黑体 (SourceHanSansSC.otf)
-2. 黑体 (simhei.ttf)
-3. 微软雅黑 (msyh.ttc)
-4. 宋体 (simsun.ttc)
+> 目前如果您使用Windows系统，建议通过WSL（Windows Subsystem for Linux）来运行游戏。
+
+### 其他计划功能
+- 存档功能：保存游戏进度
+- 排行榜系统：记录最高分
+- 更多动画效果：方块合并特效
+- 自定义主题：支持更换背景和方块样式
+- 更多游戏模式：计时模式、挑战模式等
+- 手机版本适配：触摸屏支持
+- 在线对战功能：多人竞技模式
 
 ## 🤝 贡献指南
 
@@ -215,8 +213,8 @@ const std::array<std::string, 4> sizeLabels = {"4 x 4", "5 x 5", "6 x 6", "7 x 7
 
 ## 📞 联系方式
 
-- 项目链接: [https://github.com/yourusername/my2048](https://github.com/yourusername/my2048)
-- 问题反馈: [Issues](https://github.com/yourusername/my2048/issues)
+- 项目链接: [https://github.com/yourusername/my2048](https://github.com/SunglassmanAlex/Mix_MAO_Kids)
+- 问题反馈: [Issues](https://github.com/SunglassmanAlex/Mix_MAO_Kids/issues)
 
 ---
 
@@ -224,6 +222,6 @@ const std::array<std::string, 4> sizeLabels = {"4 x 4", "5 x 5", "6 x 6", "7 x 7
 
 **如果这个项目对您有帮助，请给它一个 ⭐️**
 
-Made with ❤️ by [Your Name]
+Made with ❤️ by [Sunglassman Pan]
 
 </div> 

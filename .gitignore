@@ -4,6 +4,10 @@ build/
 *.o
 *.ninja
 *.log
-My2048  # 可执行文件
-build/
+.idea/
+.vscode/
+*.exe
+startGame  # 可执行文件
+debug_*
+test_*
 gif-h/

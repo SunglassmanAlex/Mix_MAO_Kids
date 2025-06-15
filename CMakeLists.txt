@@ -24,26 +24,18 @@ include_directories(
 )
 
 # 手动列出所有源文件
-add_executable(My2048
+add_executable(startGame
     src/game/Game2048.cpp
     src/gif/gif_wrapper.cpp
     src/main/main.cpp
 )
 
 # 链接SFML库
-target_link_libraries(My2048 
+target_link_libraries(startGame 
     sfml-graphics 
     sfml-window 
     sfml-system
 )
 
-# 复制资源文件到构建目录（可选）
+# 复制资源文件到构建目录
 file(COPY assets DESTINATION ${CMAKE_BINARY_DIR})
-
-# 添加字体测试程序（可选）
-add_executable(test_font test_font.cpp)
-target_link_libraries(test_font 
-    sfml-graphics 
-    sfml-window 
-    sfml-system
-)
